@@ -3,6 +3,7 @@ import ssl
 import sys
 from substrateinterface import SubstrateInterface
 from collections import OrderedDict
+import pandas as pd
 
 
 class StakingSnapshot:
@@ -58,7 +59,6 @@ class StakingSnapshot:
             url=node_config["url1"],  # todo: change to uni node
             ss58_format=node_config["ss58_format"],
             type_registry_preset=node_config["type_registry_preset"],
-
             ws_options=sslopt
         )
         return substrate
@@ -101,9 +101,11 @@ class StakingSnapshot:
         return targets
 
     def get_snapshot(self):
+        print(f'attempting snapshot query at {self.block_hash, self.era}')
         substrate_snapshot = self.query(module='ElectionProviderMultiPhase', storage_function='Snapshot', parameters=[],
                                         block_hash=self.block_hash)
         if substrate_snapshot is not None:
+            print("Substrate Snapshot available :)")
             return substrate_snapshot
         else:
             self.get_historical_snapshot()
@@ -166,17 +168,33 @@ class StakingSnapshot:
 
 
 if __name__ == "__main__":
-    snapshot_instance = StakingSnapshot(config_path='config.json', block_number=13911492)
-    snapshot = snapshot_instance.get_snapshot()
-    snapshot_instance.write_to_json('_custom_snapshot.json', snapshot)
+    with open("signedphase_blocknumbers.json", "r") as jsonfile:
+        blocknumbers = json.load(jsonfile)
 
-    do = 0
-    """
-    data = pd.read_csv("block_number_era.csv")
-    for index, row in data.iterrows():
-        block_hash = get_blockhash_from_blocknumber(substrate, int(row['block_number']-1))
-        print(block_hash)
-        exit()
-    """
+    from os import listdir
+    from os.path import isfile, join
+    import re
+    mypath = './data/'
+    onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath, f))]
+    covered_eras=[]
+    for txt in onlyfiles:
+        covered_eras.append(re.findall(r'\d+', txt))
+    era_compare = []
+    for era in covered_eras:
+        era_compare.append(int(era[0]))
+    blockcounter = 0
+    for number in sorted(blocknumbers):
 
-    # "0x76657374696e6720" = 'vesting'
+        blockcounter += 1
+        blockprogress = (blockcounter/len(blocknumbers))*100
+        sys.stdout.write("Blocknumber Progress: %d%%   \r" % blockprogress)
+        sys.stdout.flush()
+        snapshot_instance = StakingSnapshot(config_path='config.json', block_number=number)
+        era = snapshot_instance.get_era()
+        if era['index'] not in era_compare:
+            snapshot = snapshot_instance.get_snapshot()
+            snapshot_instance.write_to_json('_custom_snapshot.json', snapshot)
+        else:
+            print(f'already done : {era["index"]}')
+    blockcounter
+
