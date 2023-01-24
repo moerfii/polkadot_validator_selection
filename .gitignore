@@ -1,3 +1,8 @@
+./data_collection/snapshot_data
+./data_collection/signedphase_blocknumbers
+./data_collection/solutionstored_blocknumbers
+./data_collection/storedsolutions
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -3,7 +3,6 @@ import ssl
 import sys
 from substrateinterface import SubstrateInterface
 from collections import OrderedDict
-import pandas as pd
 
 
 class StakingSnapshot:
@@ -15,6 +14,7 @@ class StakingSnapshot:
         self.config_path = config_path
         self.substrate = self.__create_substrate_connection(config_path)
         self.block_hash = self.get_blockhash_from_blocknumber(block_number)
+        self.block_number = block_number
         self.snapshot = None
         self.era = str(self.get_era()['index'])
         self.weird_accounts = ['1LMT8pQSCetUTQ6Pz1oMZrT1iyBBu6pYgo5C639NEF9utRu',
@@ -43,7 +43,7 @@ class StakingSnapshot:
             storage_function=storage_function,
             params=parameters,
             block_hash=block_hash,
-            page_size=500  # not sure what value makes sense, this worked so far.
+            page_size=1000  # not sure what value makes sense, this worked so far.
         ).records
 
     @staticmethod
@@ -102,6 +102,7 @@ class StakingSnapshot:
 
     def get_snapshot(self):
         print(f'attempting snapshot query at {self.block_hash, self.era}')
+
         substrate_snapshot = self.query(module='ElectionProviderMultiPhase', storage_function='Snapshot', parameters=[],
                                         block_hash=self.block_hash)
         if substrate_snapshot is not None:
@@ -110,8 +111,21 @@ class StakingSnapshot:
         else:
             self.get_historical_snapshot()
 
+
+    def get_stored_solution(self):
+        stored_solution_indices = self.query(module="ElectionProviderMultiPhase",
+                                             storage_function="SignedSubmissionIndices",
+                                             parameters=[], block_hash=self.block_hash)
+        if not len(stored_solution_indices):
+            return None, None
+        for solution in stored_solution_indices:
+            latest_solution_index = solution[1]
+            solution = self.query(module="ElectionProviderMultiPhase",
+                       storage_function="SignedSubmissionsMap",
+                       parameters=[latest_solution_index], block_hash=self.block_hash)
+            return solution, latest_solution_index
     def write_to_json(self, name, data_to_save):
-        with open("./data/" + self.era + name, 'w', encoding='utf-8') as jsonfile:
+        with open("./storedsolutions/" + self.era + name, 'w', encoding='utf-8') as jsonfile:
             json.dump(data_to_save, jsonfile, ensure_ascii=False, indent=4)
 
     def get_historical_snapshot(self):
@@ -167,8 +181,48 @@ class StakingSnapshot:
         return ordered_voterdict
 
 
+
+
+
 if __name__ == "__main__":
-    with open("signedphase_blocknumbers.json", "r") as jsonfile:
+    snapshot_instance = StakingSnapshot(config_path='config.json', block_number=13925946)
+    indexes = snapshot_instance.get_account_indices()
+
+    account_registry = {}
+    for index in indexes:
+        account_registry[index[0].value] = index[1].value[0]
+
+
+
+
+    from os import listdir
+    from os.path import isfile, join
+    import pandas as pd
+
+    path = './solutionstored_blocknumbers/'
+    files = [f for f in listdir(path) if isfile(join(path, f))]
+    block_numbers = []
+    for file in files:
+        data = pd.read_csv(path + file)
+        for value in data.values:
+            if isinstance(value[1], int):
+                block_numbers.append(value[1])
+    blockcounter = 0
+    for number in sorted(block_numbers):
+        print(number)
+        blockcounter += 1
+        blockprogress = (blockcounter / len(block_numbers)) * 100
+        sys.stdout.write("Blocknumber Progress: %d%%   \r" % blockprogress)
+        sys.stdout.flush()
+        snapshot_instance = StakingSnapshot(config_path='config.json', block_number=number)
+        snapshot, index = snapshot_instance.get_stored_solution()
+        if snapshot is not None:
+            snapshot_instance.write_to_json('_' + str(index) + '_storedsolution_.json', snapshot)
+    blockcounter
+
+
+    """
+    #with open("signedphase_blocknumbers.json", "r") as jsonfile:
         blocknumbers = json.load(jsonfile)
 
     from os import listdir
@@ -184,7 +238,7 @@ if __name__ == "__main__":
         era_compare.append(int(era[0]))
     blockcounter = 0
     for number in sorted(blocknumbers):
-
+        print(number)
         blockcounter += 1
         blockprogress = (blockcounter/len(blocknumbers))*100
         sys.stdout.write("Blocknumber Progress: %d%%   \r" % blockprogress)
@@ -197,4 +251,5 @@ if __name__ == "__main__":
         else:
             print(f'already done : {era["index"]}')
     blockcounter
+    """
 
