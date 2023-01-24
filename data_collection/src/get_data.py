@@ -1,4 +1,5 @@
 import json
+import os
 import ssl
 import sys
 from substrateinterface import SubstrateInterface
@@ -185,7 +186,8 @@ class StakingSnapshot:
 
 
 if __name__ == "__main__":
-    snapshot_instance = StakingSnapshot(config_path='config.json', block_number=13925946)
+    print(os.getcwd())
+    snapshot_instance = StakingSnapshot(config_path='../config.json', block_number=13925946)
     indexes = snapshot_instance.get_account_indices()
 
     account_registry = {}
@@ -199,7 +201,7 @@ if __name__ == "__main__":
     from os.path import isfile, join
     import pandas as pd
 
-    path = './solutionstored_blocknumbers/'
+    path = '../solutionstored_blocknumbers/'
     files = [f for f in listdir(path) if isfile(join(path, f))]
     block_numbers = []
     for file in files:
@@ -214,7 +216,7 @@ if __name__ == "__main__":
         blockprogress = (blockcounter / len(block_numbers)) * 100
         sys.stdout.write("Blocknumber Progress: %d%%   \r" % blockprogress)
         sys.stdout.flush()
-        snapshot_instance = StakingSnapshot(config_path='config.json', block_number=number)
+        snapshot_instance = StakingSnapshot(config_path='../config.json', block_number=number)
         snapshot, index = snapshot_instance.get_stored_solution()
         if snapshot is not None:
             snapshot_instance.write_to_json('_' + str(index) + '_storedsolution_.json', snapshot)

@@ -1,7 +1,12 @@
-./data_collection/snapshot_data/
-./data_collection/signedphase_blocknumbers/
-./data_collection/solutionstored_blocknumbers/
-./data_collection/storedsolutions/
+data_collection/snapshot_data/
+data_collection/signedphase_blocknumbers/
+data_collection/solutionstored_blocknumbers/
+data_collection/storedsolutions/
+data_collection/config.json
+data_collection/964_full_voterlist.json
+data_collection/964_fullfull_voterlist.json
+.idea/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

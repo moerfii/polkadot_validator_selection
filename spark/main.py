@@ -7,6 +7,11 @@ from pyspark.sql import SparkSession
 from dotenv import load_dotenv, find_dotenv
 
 queries_postgres = {
+    "get_stakingdata":
+    """
+    
+    """,
+
     "get_all_validatorpool":
     """
     select
