@@ -1,0 +1,10 @@
+[package]
+name="sequential_phragmen_custom"
+version="42.0.0"
+edition="2021"
+[dependencies]
+sp-npos-elections="11.0.0"
+sp-arithmetic="11.0.0"
+sp-runtime="15.0.0"
+serde_json = "1.0.66"
+serde = { version = "1.0.66", features = ["derive"] }
