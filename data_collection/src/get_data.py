@@ -1,9 +1,52 @@
 import json
-import os
 import ssl
 import sys
 from substrateinterface import SubstrateInterface
 from collections import OrderedDict
+import subprocess
+import time
+import pandas as pd
+
+
+class StakingSnapshotUtility:
+
+    def __init__(self, snapshot_instance):
+        self.snapshot_instance = snapshot_instance
+
+    @staticmethod
+    def read_json(path_to_json):
+        with open(path_to_json, 'r') as jsonfile:
+            return json.load(jsonfile)
+
+    def group_data(self, path_to_signedphase_json, path_to_solutionstored_json):
+        signedphase_block_numbers = sorted(self.read_json(path_to_signedphase_json))
+        solutionstored_block_numbers = sorted(self.read_json(path_to_solutionstored_json))
+        signedphase_era_dict = {}
+        solution_era_dict = {}
+        for signedphase_block in signedphase_block_numbers:
+            print(signedphase_block)
+            signedphase_era_dict[str(self.get_era(signedphase_block)['index'])] = signedphase_block
+        for solution_block in solutionstored_block_numbers:
+            print(solution_block)
+            solution_era_dict[str(self.get_era(solution_block)['index'])] = solution_block
+
+        signedphase_eras = set(signedphase_era_dict.keys())
+        solution_eras = set(solution_era_dict.keys())
+        common_eras = signedphase_eras.intersection(solution_eras)
+        full_data_list = []
+        for era in common_eras:
+            full_data_list.append({"Era": era,
+                                   "SignedPhaseBlock": signedphase_era_dict[era],
+                                   "SolutionStoredBlock": solution_era_dict[era]})
+        return pd.DataFrame(full_data_list)
+
+    def get_era(self, block_number):
+        self.snapshot_instance.set_block_number(block_number)
+        return self.snapshot_instance.get_era()
+
+    @staticmethod
+    def save_file(dataframe):
+        dataframe.to_parquet("./block_numbers/block_numbers_dataframe.parquet")
 
 
 class StakingSnapshot:
@@ -50,7 +93,6 @@ class StakingSnapshot:
         self.block_hash = self.get_blockhash_from_blocknumber(block_number)
         self.era = str(self.get_era()['index'])
 
-
     def query(self, module, storage_function, parameters, block_hash):
         return self.substrate.query(
             module=module,
@@ -64,6 +106,7 @@ class StakingSnapshot:
             module=module,
             storage_function=storage_function,
             block_hash=block_hash,
+            params=parameters
             # not sure what value makes sense, this worked so far.
         )
 
@@ -136,7 +179,7 @@ class StakingSnapshot:
                                              parameters=[], block_hash=self.block_hash)
         if not len(stored_solution_indices):
             return None, None
-        for solution in stored_solution_indices:
+        for solution in stored_solution_indices: # todo: replace with stored_solution_indices[-1]
             if solution[1] > 10000:
                 latest_solution_index = solution[2]
             else:
@@ -144,10 +187,34 @@ class StakingSnapshot:
             solution = self.query(module="ElectionProviderMultiPhase",
                                   storage_function="SignedSubmissionsMap",
                                   parameters=[latest_solution_index], block_hash=self.block_hash)
-            return solution, latest_solution_index
+            return solution
+
+    def calculate_optimal_solution(self, path_to_snapshot, iterations="10"):
+        path_to_snapshot_file = path_to_snapshot + str(self.era) + "_snapshot.json"
+        start_time = time.time()
+        result = subprocess.run(["../hackingtime/target/debug/sequential_phragmen_custom",
+                                 path_to_snapshot_file,
+                                 iterations,
+                                 str(self.era)],
+                                stdout=subprocess.PIPE,
+                                text=True)
+        end_time = time.time()
+        time_elapsed = end_time - start_time
+        print("Time elapsed: {:.2f} seconds".format(time_elapsed))
+        # Extract the output of the Rust script
+        output = result.stdout
+
+        # Split the output into two strings
+        string_winners, string_assignments = output.strip().split('  ')
+
+        # Parse the JSON strings into Python objects
+        json_winners = json.loads(string_winners)
+        json_assignments = json.loads(string_assignments)
+
+        return json_winners, json_assignments
 
     def write_to_json(self, name, data_to_save, storage_path):
-        with open(storage_path + self.era + name, 'w', encoding='utf-8') as jsonfile:
+        with open(storage_path + str(self.era) + name, 'w', encoding='utf-8') as jsonfile:
             json.dump(data_to_save, jsonfile, ensure_ascii=False, indent=4)
 
     def get_historical_snapshot(self):
@@ -205,10 +272,21 @@ class StakingSnapshot:
 
 if __name__ == "__main__":
     snapshot_instance = StakingSnapshot(config_path='config.json')
+
+    winners, assignments = snapshot_instance.calculate_optimal_solution("./snapshot_data/590_custom_snapshot.json", "10000")
+    snapshot_instance.write_to_json(name="_winners.json",
+                                    data_to_save=winners,
+                                    storage_path="./calculated_solutions/")
+    snapshot_instance.write_to_json(name="_assignments.json",
+                                    data_to_save=assignments,
+                                    storage_path="./calculated_solutions/")
+    snapshot_utility = StakingSnapshotUtility(snapshot_instance)
+    df = snapshot_utility.group_data("./block_numbers/signedphase_blocknumer.json",
+                                "./block_numbers/solutionstored_blocknumbers.json")
+    snapshot_utility.save_file(df)
     snapshot_instance.set_block_number(13946907)
     indexes = snapshot_instance.get_account_indices()
-
-
+    """
     from os import listdir
     from os.path import isfile, join
     import pandas as pd
@@ -235,7 +313,7 @@ if __name__ == "__main__":
         if snapshot is not None:
             snapshot_instance.write_to_json('_' + str(index) + '_storedsolution_.json', snapshot)
     blockcounter
-
+    """
     """
     #with open("signedphase_blocknumbers.json", "r") as jsonfile:
         blocknumbers = json.load(jsonfile)
