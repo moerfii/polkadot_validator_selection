@@ -4,63 +4,85 @@ import os
 import numpy as np
 
 
-class ScoringUtlity:
+class ScoringUtility:
 
-    def __init__(self, era):
-        self.era = era
-        self.winners_json = self.read_json("../calculated_solutions/", "_winners.json")
-        self.stored_json = self.read_json("../storedsolutions/", "_0_storedsolution_.json")
-        self.calculated_score = []
+    def __init__(self):
+        self.calculated_score = None
 
-    def read_json(self,path_to_json, name):
-        full_path = path_to_json + str(self.era) + name
-        with open(full_path, 'r') as jsonfile:
+    @staticmethod
+    def read_json(path):
+        with open(path, 'r') as jsonfile:
             return json.load(jsonfile)
 
-    def calculate_score(self):
-
+    @staticmethod
+    def calculate_score(json_file=None):
+        if json_file is None:
+            raise UserWarning("Must provide json to calculate score.")
         stakes = []
-        for row in self.winners_json:
+        for row in json_file:
             stakes.append(row[1])
         stakes_array = np.array(stakes)
 
         # Calculate the sum of the stakes
-        sum_of_stakes = np.sum(stakes_array)
+        sum_of_stakes = int(np.sum(stakes_array))
 
         # Calculate the variance of the stakes
-        variance_of_stakes = np.var(stakes_array)
+        variance_of_stakes = int(np.var(stakes_array))
 
         # Calculate the minimum value of the stakes
-        min_stake = np.min(stakes_array)
-        self.calculated_score.append(min_stake)
-        self.calculated_score.append(sum_of_stakes)
-        self.calculated_score.append(variance_of_stakes)
-        return min_stake, sum_of_stakes, variance_of_stakes
+        min_stake = int(np.min(stakes_array))
 
-    def compare_scores(self):
-        stored_score = np.array(self.stored_json['raw_solution']["score"])
+        return np.asarray([min_stake, sum_of_stakes, variance_of_stakes])
 
+    @staticmethod
+    def is_score1_better_than_score2(scores1=None, scores2=None):
+        if scores1 is None or scores2 is None:
+            raise UserWarning("Must provide 2 scores lists")
+
+        scores1_array = np.asarray(scores1)
+        scores2_array = np.asarray(scores2)
+
+        if not scores2_array[1]:
+            print("Bad solution stored")
+            return True
         # compare min stake: goal is to maximise: if calculated is worse return False
-        print(f"storedmin: {stored_score[0]}, calcmin: {int(self.calculated_score[0])}")
-        if stored_score[0] > int(self.calculated_score[0]):
+        print(f"storedmin: {scores2_array[0]}, calcmin: {int(scores1_array[0])}")
+        if scores2_array[0] > int(scores1_array[0]):
             return False
 
         # compare sum stakes: goal is to maximise: if calculated is worse return False
-        print(f"storedsum: {stored_score[1]}, calcsum: {int(self.calculated_score[1])}")
-        if stored_score[1] > int(self.calculated_score[1]):
+        print(f"storedsum: {scores2_array[1]}, calcsum: {int(scores1_array[1])}")
+        if scores2_array[1] > int(scores1_array[1]):
             return False
 
         # compare variance of stakes: goal is to minimise: if calculated is worse return False
-        print(f"storedvar: {stored_score[2]}, calcvar: {int(self.calculated_score[2])}")
-        if stored_score[2] < int(self.calculated_score[2]):
+        print(f"storedvar: {scores2_array[2]}, calcvar: {int(scores1_array[2])}")
+        if scores2_array[2] < int(scores1_array[2]):
             return False
+        return True
 
+    def check_correctness_solution(self, snapshot_data, calculated_solution):
+        # check if all the edges present in calc solution are also present in snapshot, if this is the case return True
+        # more of a sanity check
         return True
 
 
 if __name__ == "__main__":
-    scorer = ScoringUtlity(590)
-    mini, summa, var = scorer.calculate_score()
-    print(scorer.compare_scores())
+    scorer = ScoringUtility()
+    dirs = sorted(os.listdir("../data/calculated_solutions_data/"))
+    scores1 = []
+    for dir in dirs:
+        if "_winners" in dir:
+            path = "../data/calculated_solutions_data/" + dir
+            scores1.append(scorer.calculate_score(scorer.read_json(path)))
+    dirs1 = sorted(os.listdir("../data/stored_solutions_data/"))
+    scores2 = []
+    for dir in dirs1:
+        print(dir)
+        path = "../data/stored_solutions_data/" + dir
+        scores2.append(np.asarray(scorer.read_json(path)['raw_solution']['score']))
 
+    for index, value in enumerate(scores1):
+        print(index)
+        print(scorer.is_score1_better_than_score2(value,scores2[index]))
     print()

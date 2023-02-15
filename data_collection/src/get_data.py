@@ -49,15 +49,16 @@ class StakingSnapshotUtility:
         dataframe.to_parquet("./block_numbers/block_numbers_dataframe.parquet")
 
 
+
+
 class StakingSnapshot:
     """
     Creates Snapshot at block_number.
     If none exists it calls various storage queries to generate custom snapshot.
     """
 
-    def __init__(self, config_path):
-        self.config_path = config_path
-        self.substrate = self.__create_substrate_connection(config_path)
+    def __init__(self):
+        self.substrate = None
         self.block_hash = None
         self.block_number = None
         self.snapshot = None
@@ -71,8 +72,9 @@ class StakingSnapshot:
                                '11uywEbA2VgRimPLqL8tTNWErDE7sZXe7aycnErJu28bBTx']
         self.current_nominator_max = 22500
 
-    @staticmethod
-    def __create_substrate_connection(config_path):
+    def create_substrate_connection(self, config_path):
+        if config_path is None:
+            raise UserWarning("Must provide valid config json")
         with open(config_path, "r") as f:
             node_config = json.loads(f.read())["node"]
         sslopt = {
@@ -81,17 +83,20 @@ class StakingSnapshot:
             }
         }
         substrate = SubstrateInterface(
-            url=node_config["url1"],  # todo: change to uni node
+            url=node_config["url"],
             ss58_format=node_config["ss58_format"],
             type_registry_preset=node_config["type_registry_preset"],
             ws_options=sslopt
         )
-        return substrate
+        self.substrate = substrate
 
     def set_block_number(self, block_number):
         self.block_number = block_number
         self.block_hash = self.get_blockhash_from_blocknumber(block_number)
         self.era = str(self.get_era()['index'])
+
+    def set_era(self, era):
+        self.era = str(era)
 
     def query(self, module, storage_function, parameters, block_hash):
         return self.substrate.query(
@@ -109,6 +114,16 @@ class StakingSnapshot:
             params=parameters
             # not sure what value makes sense, this worked so far.
         )
+
+    def get_validator_exposure(self, era):
+        result = self.query_map(module='Staking',
+                          storage_function='ErasStakers',
+                          parameters=[era, ],
+                          block_hash=self.block_hash)
+        exposure_dict = {}
+        for row in result.records:
+            exposure_dict[row[0].value] = row[1].value
+        return exposure_dict
 
     def get_era(self):
         return self.query(module='Staking',
@@ -162,32 +177,21 @@ class StakingSnapshot:
         return targets
 
     def get_snapshot(self):
-        print(f'attempting snapshot query at {self.block_hash, self.era, self.block_number}')
+        # print(f'attempting snapshot query at {self.block_hash, self.era, self.block_number}')
 
         substrate_snapshot = self.query(module='ElectionProviderMultiPhase',
                                         storage_function='Snapshot', parameters=[],
                                         block_hash=self.block_hash)
         if substrate_snapshot is not None:
-            print("Substrate Snapshot available :)")
+            # print("Substrate Snapshot available :)")
             return substrate_snapshot
         else:
             self.get_historical_snapshot()
 
     def get_stored_solution(self):
-        stored_solution_indices = self.query(module="ElectionProviderMultiPhase",
-                                             storage_function="SignedSubmissionIndices",
-                                             parameters=[], block_hash=self.block_hash)
-        if not len(stored_solution_indices):
-            return None, None
-        for solution in stored_solution_indices: # todo: replace with stored_solution_indices[-1]
-            if solution[1] > 10000:
-                latest_solution_index = solution[2]
-            else:
-                latest_solution_index = solution[1]
-            solution = self.query(module="ElectionProviderMultiPhase",
-                                  storage_function="SignedSubmissionsMap",
-                                  parameters=[latest_solution_index], block_hash=self.block_hash)
-            return solution
+        return self.query(module="ElectionProviderMultiPhase",
+                          storage_function="SignedSubmissionsMap",
+                          parameters=[0], block_hash=self.block_hash)
 
     def calculate_optimal_solution(self, path_to_snapshot, iterations="10"):
         path_to_snapshot_file = path_to_snapshot + str(self.era) + "_snapshot.json"
@@ -200,7 +204,7 @@ class StakingSnapshot:
                                 text=True)
         end_time = time.time()
         time_elapsed = end_time - start_time
-        print("Time elapsed: {:.2f} seconds".format(time_elapsed))
+        # print("Time elapsed: {:.2f} seconds".format(time_elapsed))
         # Extract the output of the Rust script
         output = result.stdout
 
@@ -214,12 +218,13 @@ class StakingSnapshot:
         return json_winners, json_assignments
 
     def write_to_json(self, name, data_to_save, storage_path):
-        with open(storage_path + str(self.era) + name, 'w', encoding='utf-8') as jsonfile:
-            json.dump(data_to_save, jsonfile, ensure_ascii=False, indent=4)
+        file_path = storage_path + str(self.era) + name
+        with open(file_path, 'w', encoding='utf-8') as jsonfile:
+            jsonfile.write(json.dumps(data_to_save, ensure_ascii=False, indent=4))
+            jsonfile.close()
 
     def get_historical_snapshot(self):
         targets = self.get_targets()
-
         voter_pointers_dict = self.__transform_to_ordereddict(self.get_voterlist_bags())
         full_voterlist = []
         bagscounter = 0
@@ -271,9 +276,20 @@ class StakingSnapshot:
 
 
 if __name__ == "__main__":
+    snapshot = StakingSnapshot()
+    snapshot.create_substrate_connection(config_path="./config.json")
+
+    what = snapshot.get_validator_exposure(986)
+    print()
+
+
+    #snapshot.calculate_optimal_solution()
+
+    """
     snapshot_instance = StakingSnapshot(config_path='config.json')
 
-    winners, assignments = snapshot_instance.calculate_optimal_solution("./snapshot_data/590_custom_snapshot.json", "10000")
+    winners, assignments = snapshot_instance.calculate_optimal_solution("./snapshot_data/590_custom_snapshot.json",
+                                                                        "10000")
     snapshot_instance.write_to_json(name="_winners.json",
                                     data_to_save=winners,
                                     storage_path="./calculated_solutions/")
@@ -282,10 +298,11 @@ if __name__ == "__main__":
                                     storage_path="./calculated_solutions/")
     snapshot_utility = StakingSnapshotUtility(snapshot_instance)
     df = snapshot_utility.group_data("./block_numbers/signedphase_blocknumer.json",
-                                "./block_numbers/solutionstored_blocknumbers.json")
+                                     "./block_numbers/solutionstored_blocknumbers.json")
     snapshot_utility.save_file(df)
     snapshot_instance.set_block_number(13946907)
-    indexes = snapshot_instance.get_account_indices()
+    indexes = snapshot_instance.get_account_indices()"""
+
     """
     from os import listdir
     from os.path import isfile, join
