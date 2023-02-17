@@ -6,6 +6,7 @@ import time
 import pandas as pd
 from src.get_data import StakingSnapshot
 from src.preprocessor import Preprocessor
+from src.utils import read_parquet
 import argparse
 import re
 from pathlib import Path
@@ -119,13 +120,14 @@ def preprocess_data(req_dirs):
     snapshots_list      = []
     snapshot_counter    = 0
     for snap in snapshots:
+        era = [int(s) for s in snap.split('_') if s.isdigit()][0]
         snapshot_counter += 1
         bagsprogress = (snapshot_counter / len(snapshots)) * 100
         sys.stdout.write("Preprocessing Snapshots Progress: %d%%   \r" % bagsprogress)
         sys.stdout.flush()
         with open(snap_path + snap, 'r') as snapjson:
             snapshot_json = json.load(snapjson)
-        snapshots_list.append(Preprocessor.process_snapshot_data(snapshot_json))
+        snapshots_list.append(Preprocessor.process_snapshot_data(snapshot_json, era))
 
     solution_path       = req_dirs[2]
     solutions           = sorted(os.listdir(solution_path))
@@ -175,15 +177,14 @@ def setup():
     return StakingSnapshot(), path, required_directories
 
 
-def load_parquet(path_to_parquet):
-    return pd.read_parquet(path_to_parquet)
+
 
 
 if __name__ == "__main__":
-    """
     snapshot, path, req_dirs = setup()
     snapshot.create_substrate_connection(path)
-    block_numbers = load_parquet("./block_numbers/block_numbers_dataframe.parquet")
+    block_numbers = read_parquet("./block_numbers/block_numbers_dataframe.parquet")
+
     # get_data(snapshot, block_numbers, True, req_dirs)
     df = preprocess_data(req_dirs)
 
@@ -192,18 +193,13 @@ if __name__ == "__main__":
                        2: "list_of_nominators",
                        3: "nominator_count",
                        4: "elected_current_era",
-                       5: "elected_counter",
-                       6: "self_stake",
-                       7: "avg_stake_per_nominator"},
+                       5: "elected_previous_era",
+                       6: "elected_counter",
+                       7: "self_stake",
+                       8: "avg_stake_per_nominator",
+                       9: "era"},
               inplace=True)
-    """
-    #df.to_csv("money.csv")
-    df = pd.read_csv("money.csv")
-    df2 = df.groupby(["elected_counter"]).size().reset_index(name='counter')
-    df2 = df2.drop([0])
-    plt.bar(df2['elected_counter'], df2['counter'])
-    plt.xlabel("elected_counter")
-    plt.ylabel("count")
-    plt.title("Validator election frequency distribution (excluding never elected)")
-    plt.show()
-    print()
+
+    df.to_csv("money.csv")
+    print("done!")
+

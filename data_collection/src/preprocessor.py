@@ -29,7 +29,7 @@ class Preprocessor:
                 self.process_solution_data(data)
 
     @staticmethod
-    def process_snapshot_data(snapshot):
+    def process_snapshot_data(snapshot, era):
         # todo: potentially add commission // era points
         """
         place all in Dataframe with columns (ValidatorAddress, TotalBond, ProportionalBond, *[Nominators], NominatorCount,
@@ -50,12 +50,14 @@ class Preprocessor:
                     list_of_nominators.add(row[0])
                     nominator_count                 = current_values[3] + 1
                     elected_current_era             = 0  # get with solution
+                    elected_previous_era            = 0
                     elected_counter                 = 0  # get with solution
                     self_stake                      = 0  # potentially add later/should not give extra information
                     avg_stake_per_nominator         = proportional_bond / len(list_of_nominators)  # todo: adapt metric.
+                    era                             = era
                     processed_dict[validator]       = [total_bond, proportional_bond, list_of_nominators,
-                                                       nominator_count, elected_current_era, elected_counter,
-                                                       self_stake, avg_stake_per_nominator]
+                                                       nominator_count, elected_current_era, elected_previous_era,
+                                                       elected_counter,self_stake, avg_stake_per_nominator, era]
                 except KeyError:
                     total_bond                      = row[1]
                     proportional_bond               = row[1]/len(row[2])
@@ -63,12 +65,14 @@ class Preprocessor:
                     list_of_nominators.add(row[0])
                     nominator_count                 = 1
                     elected_current_era             = 0
+                    elected_previous_era            = 0
                     elected_counter                 = 0
                     self_stake                      = 0
                     avg_stake_per_nominator         = row[1]
+                    era                             = era
                     processed_dict[validator]       = [total_bond, proportional_bond, list_of_nominators,
-                                                       nominator_count, elected_current_era, elected_counter,
-                                                       self_stake, avg_stake_per_nominator]
+                                                       nominator_count, elected_current_era, elected_previous_era,
+                                                       elected_counter, self_stake, avg_stake_per_nominator, era]
         return processed_dict
 
     def update_values(self):
@@ -82,7 +86,8 @@ class Preprocessor:
                 processed_snapshot_dict[winner[0]][4] = 1
                 try:
                     if previous_snapshot_dict is not None:
-                        processed_snapshot_dict[winner[0]][5] = previous_snapshot_dict[winner[0]][5] + 1
+                        processed_snapshot_dict[winner[0]][6] = previous_snapshot_dict[winner[0]][6] + 1
+                        processed_snapshot_dict[winner[0]][5] = previous_snapshot_dict[winner[0]][4]
                 except KeyError:
                     continue
         return processed_snapshot_dict
