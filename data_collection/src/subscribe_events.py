@@ -1,11 +1,12 @@
+import os
 import time
 
 from get_data import StakingSnapshot
-
+from preprocessor import Preprocessor
 
 snapshot = StakingSnapshot()
 substrate = snapshot.create_substrate_connection(config_path="../config.json")
-
+snapshot_path = "../data/snapshot_data/"
 
 def subscription_handler(account_info_obj, update_nr, subscription_id):
 
@@ -13,6 +14,22 @@ def subscription_handler(account_info_obj, update_nr, subscription_id):
         print('Initial account data:', account_info_obj.value)
 
     if update_nr > 0:
+        snapshots = sorted(os.listdir(snapshot_path))
+        eras = []
+        for snap in snapshots:
+            eras.append([int(s) for s in snap.split('_') if s.isdigit()][0])
+        snapshot.era = max(eras) + 1
+        snapshot_data = account_info_obj.value
+        nominator_mapping, validator_mapping = Preprocessor().return_mapping_from_address_to_index(snapshot_data)
+        snapshot.write_to_json(name="_snapshot.json",
+                                        data_to_save=snapshot_data,
+                                        storage_path=snapshot_path)
+        snapshot.write_to_json(name="_snapshot_nominator_mapping.json",
+                                        data_to_save=nominator_mapping,
+                                        storage_path=snapshot_path)
+        snapshot.write_to_json(name="_snapshot_validator_mapping.json",
+                                        data_to_save=validator_mapping,
+                                        storage_path=snapshot_path)
         # Do something with the update
         print('Account data changed:', account_info_obj.value)
 
@@ -21,7 +38,7 @@ def subscription_handler(account_info_obj, update_nr, subscription_id):
         return account_info_obj
 
 
-result = substrate.query("System", "Account", ["5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"],
+result = substrate.query("ElectionProviderMultiPhase", "Snapshot", [],
                          subscription_handler=subscription_handler)
 
 """             
