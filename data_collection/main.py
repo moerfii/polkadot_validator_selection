@@ -117,9 +117,13 @@ def preprocess_data(req_dirs):
     snap_path           = req_dirs[0]
     snapshots           = sorted(os.listdir(snap_path))
     snapshots           = [snap for snap in snapshots if "mapping" not in snap]
+    solution_path       = req_dirs[2]
+    solutions           = sorted(os.listdir(solution_path))
+    solutions           = [sol for sol in solutions if "assignments" not in sol]
+    solutions_list      = []
     snapshots_list      = []
     snapshot_counter    = 0
-    for snap in snapshots:
+    for index, snap in enumerate(snapshots):
         era = [int(s) for s in snap.split('_') if s.isdigit()][0]
         snapshot_counter += 1
         bagsprogress = (snapshot_counter / len(snapshots)) * 100
@@ -127,13 +131,12 @@ def preprocess_data(req_dirs):
         sys.stdout.flush()
         with open(snap_path + snap, 'r') as snapjson:
             snapshot_json = json.load(snapjson)
-        snapshots_list.append(Preprocessor.process_snapshot_data(snapshot_json, era))
+        with open(solution_path + solutions[index], 'r') as soljson:
+            solution_json = json.load(soljson)
+        snapshots_list.append(Preprocessor.process_snapshot_data(snapshot_json, era, snapshots_list, solution_json))
 
-    solution_path       = req_dirs[2]
-    solutions           = sorted(os.listdir(solution_path))
-    solutions           = [sol for sol in solutions if "winners" not in sol]
-    solutions_list      = []
-    solutions_counter = 0
+
+    """    solutions_counter = 0
     for index, sol in enumerate(solutions):
         solutions_counter += 1
         bagsprogress = (solutions_counter / len(solutions)) * 100
@@ -141,15 +144,10 @@ def preprocess_data(req_dirs):
         sys.stdout.flush()
         with open(solution_path + sol, 'r') as soljson:
             solution_json = json.load(soljson)
-        try:
-            previous_snapshot_dict = snapshots_list[index-1]
-        except KeyError:
-            previous_snapshot_dict = None
         solutions_list.append(Preprocessor.process_solution_data(solution_json,
-                                                                 snapshots_list[index],
-                                                                 previous_snapshot_dict))
+                                                                 snapshots_list, index))"""
     dataframes = []
-    for sub_df in solutions_list:
+    for sub_df in snapshots_list:
         dataframes.append(pd.DataFrame.from_dict(sub_df, orient='index'))
     return pd.concat(dataframes)
 
@@ -170,22 +168,29 @@ def setup():
     required_directories = environment_handler()
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--cpath", help="Submit the path to the config.json file", type=str)
+    parser.add_argument("-m", "--mode",  help="Select live or historic",                 type=str)
+    parser.add_argument("-s", "--save",  help="Provide path to save file",               type=str)
     args = parser.parse_args()
     if args.cpath is None:
         raise UserWarning("Please submit the path to your config.json")
     path = args.cpath
-    return StakingSnapshot(), path, required_directories
+    return StakingSnapshot(), path, required_directories, args
 
 
 
 
 
 if __name__ == "__main__":
-    snapshot, path, req_dirs = setup()
+    snapshot, path, req_dirs, args = setup()
     snapshot.create_substrate_connection(path)
     block_numbers = read_parquet("./block_numbers/block_numbers_dataframe.parquet")
 
-    # get_data(snapshot, block_numbers, True, req_dirs)
+    if args.mode == "history":
+        print('history')
+        get_data(snapshot, block_numbers, True, req_dirs)
+    else:
+        print('subscribe')
+
     df = preprocess_data(req_dirs)
 
     df.rename(columns={0: "total_bond",
@@ -200,6 +205,7 @@ if __name__ == "__main__":
                        9: "era"},
               inplace=True)
 
-    df.to_csv("money.csv")
+    #if args.save is not None:
+    df.to_csv('money.csv')
     print("done!")
 

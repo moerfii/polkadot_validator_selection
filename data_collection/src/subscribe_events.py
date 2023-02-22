@@ -14,11 +14,7 @@ def subscription_handler(account_info_obj, update_nr, subscription_id):
         print('Initial account data:', account_info_obj.value)
 
     if update_nr > 0:
-        snapshots = sorted(os.listdir(snapshot_path))
-        eras = []
-        for snap in snapshots:
-            eras.append([int(s) for s in snap.split('_') if s.isdigit()][0])
-        snapshot.era = max(eras) + 1
+        snapshot.era = snapshot.get_era()['index']
         snapshot_data = account_info_obj.value
         nominator_mapping, validator_mapping = Preprocessor().return_mapping_from_address_to_index(snapshot_data)
         snapshot.write_to_json(name="_snapshot.json",

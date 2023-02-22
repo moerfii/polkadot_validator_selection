@@ -81,10 +81,14 @@ class StakingSnapshot:
             exposure_dict[row[0].value] = row[1].value
         return exposure_dict
 
-    def get_era(self):
+    def get_era(self, block_hash=None):
+        if self.block_hash is None:
+            block_hash = block_hash
+        else:
+            block_hash = self.block_hash
         return self.query(module='Staking',
                           storage_function='ActiveEra',
-                          parameters=[], block_hash=self.block_hash)
+                          parameters=[], block_hash=block_hash)
 
     def get_blockhash_from_blocknumber(self, block_number):
         return self.substrate.get_block_hash(block_number)
@@ -234,6 +238,7 @@ class StakingSnapshot:
 if __name__ == "__main__":
     snapshot = StakingSnapshot()
     snapshot.create_substrate_connection(config_path="./config.json")
+    era = str(snapshot.get_era()['index'])
 
     what = snapshot.get_validator_exposure(986)
     print()
