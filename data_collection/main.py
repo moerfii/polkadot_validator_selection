@@ -209,68 +209,10 @@ def setup():
     return StakingSnapshot(), path, required_directories, args
 
 
-
-
-def preprocess_bond_distribution_data(req_dirs):
-    """
-
-    :param req_dirs:
-    :return:
-    """
-
-    snap_path = req_dirs[0]
-    snapshots = sorted(os.listdir(snap_path))
-    snapshots = [snap for snap in snapshots if "mapping" not in snap]
-    solution_path = req_dirs[2]
-    solutions = sorted(os.listdir(solution_path))
-    solutions = [sol for sol in solutions if "assignments" in sol]
-
-    # todo: account for rounding errors in total_bond/ proportional bond
-
-    """
-    get all nominators and their stake // basically snapshot in dict form
-    """
-    """    
-    snapshot_dicts = []
-    snapshot_counter = 0
-    for snap_file in snapshots[batch_size:]:
-        snapshot_counter = progress_of_loop(snapshot_counter, snapshots, "Preprocessing Snapshots")
-        snapshot_dict = {}
-        snap, jsonfile = read_json(snap_path + snap_file)
-        for nominator in snap["voters"]:
-            snapshot_dict[nominator[0]] = []
-            snapshot_dict[nominator[0]].append(nominator[1])
-            snapshot_dict[nominator[0]].append(nominator[2])
-        snapshot_dicts.append(snapshot_dict)
-        jsonfile.close()
-    """
-    """
-    get all assignments and their stake // solution in dict form
-    """
-    """
-    assignment_dicts = []
-    snapshot_counter = 0
-    for assignment_file in solutions[batch_size:]:
-        snapshot_counter = progress_of_loop(
-            snapshot_counter, solutions, "Preprocessing Assignments"
-        )
-        assignment_dict = {}
-        assignments, jsonfile = read_json(solution_path + assignment_file)
-        for assignment in assignments:
-            assignment_dict[assignment[0]] = assignment[1]
-        assignment_dicts.append(assignment_dict)
-        jsonfile.close()
-    """
-    """
-    nominator: [validator, specific_proportional_bond, actual_bond (here from snap[index] * assignment) 
-    """
-
+def handle_era_data(eras, snapshots, solutions, snap_path, solution_path):
     final_dictionaries = []
     sub_final_dictionaries = []
     progress_counter = 0
-    eras = []
-    for snapshot in snapshots:
-        eras.append([int(s) for s in snapshot.split("_") if s.isdigit()][0])
     for index, era in enumerate(eras):
         progress_counter = progress_of_loop(
             progress_counter, eras, "Preprocessing Assignments"
@@ -285,7 +227,6 @@ def preprocess_bond_distribution_data(req_dirs):
             snap_dictionary[nominator[0]] = []
             snap_dictionary[nominator[0]].append(nominator[1])
             snap_dictionary[nominator[0]].append(nominator[2])
-
 
         assignment_file = solutions[index]
         assignments_dict = {}
@@ -331,56 +272,95 @@ def preprocess_bond_distribution_data(req_dirs):
 def get_model_1_data():
     # snapshot.create_substrate_connection(path)
     ## MODEL 1 DATA
-    block_numbers = read_parquet("./block_numbers/new_block_numbers_dataframe.parquet")
+    block_numbers = read_parquet(
+        "./block_numbers/new_block_numbers_dataframe.parquet"
+    )
     # get_data(snapshot, block_numbers, True, req_dirs)
     if args.mode == "history":
-        print('history')
+        print("history")
         get_data(snapshot, block_numbers, True, req_dirs)
     else:
-        print('subscribe')
+        print("subscribe")
 
     df = preprocess_data(req_dirs)
 
-    df.rename(columns={0: "total_bond",
-                       1: "proportional_bond",
-                       2: "list_of_nominators",
-                       3: "nominator_count",
-                       4: "elected_current_era",
-                       5: "elected_previous_era",
-                       6: "elected_counter",
-                       7: "self_stake",
-                       8: "avg_stake_per_nominator",
-                       9: "era"},
-              inplace=True)
+    df.rename(
+        columns={
+            0: "total_bond",
+            1: "proportional_bond",
+            2: "list_of_nominators",
+            3: "nominator_count",
+            4: "elected_current_era",
+            5: "elected_previous_era",
+            6: "elected_counter",
+            7: "self_stake",
+            8: "avg_stake_per_nominator",
+            9: "era",
+        },
+        inplace=True,
+    )
 
     # if args.save is not None:
-    df.to_csv('snapshot_with_solution.csv')
+    df.to_csv("snapshot_with_solution.csv")
 
-def get_model_2_data():
+
+def prepare_preprocess_distribution_data(req_dirs):
+    snap_path = req_dirs[0]
+    snapshots = sorted(os.listdir(snap_path))
+    snapshots = [snap for snap in snapshots if "mapping" not in snap]
+    solution_path = req_dirs[2]
+    solutions = sorted(os.listdir(solution_path))
+    solutions = [sol for sol in solutions if "assignments" in sol]
+
+    # todo: account for rounding errors in total_bond/ proportional bond
+    eras = []
+    for snapshot in snapshots:
+        eras.append([int(s) for s in snapshot.split("_") if s.isdigit()][0])
+    return eras, snapshots, solutions, snap_path, solution_path
+
+
+def get_model_2_data(maxbatchsize=250):
     ## MODEL2 DATA
     # get predicted active set (for now winners json?)
     # go through nominators, (open snapshot + assignments json) drop all non-active set validators
     # redistribute proportional stake
     # attach actual bond by going into assignments json
-    df = preprocess_bond_distribution_data(req_dirs)
-    df.rename(
-        columns={
-            0: "nominator",
-            1: "validator",
-            2: "era",
-            3: "proportional_bond",
-            4: "number_of_validators",
-            5: "total_bond",
-            6: "solution_bond",
-            7: "total_proportional_bond",
-        },
-        inplace=True,
-    )
-    df.to_csv("df_bond_distribution_2.csv")
+
+    (
+        eras,
+        snapshots,
+        solutions,
+        snap_path,
+        solution_path,
+    ) = prepare_preprocess_distribution_data(req_dirs)
+
+    eras = [
+        eras[i * maxbatchsize : (i + 1) * maxbatchsize]
+        for i in range((len(eras) + maxbatchsize - 1) // maxbatchsize)
+    ]
+    for index, sub_eras in enumerate(eras):
+        df = handle_era_data(
+            sub_eras, snapshots, solutions, snap_path, solution_path
+        )
+        df.rename(
+            columns={
+                0: "nominator",
+                1: "validator",
+                2: "era",
+                3: "proportional_bond",
+                4: "number_of_validators",
+                5: "total_bond",
+                6: "solution_bond",
+                7: "total_proportional_bond",
+            },
+            inplace=True,
+        )
+        filename = "df_bond_distribution_{}.csv".format(index)
+        df.to_csv(filename)
     print("done!")
 
 
 if __name__ == "__main__":
     snapshot, path, req_dirs, args = setup()
-    #get_model_1_data()
+    # get_model_1_data()
     get_model_2_data()
