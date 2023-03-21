@@ -1,10 +1,9 @@
 import json
 import ssl
-import sys
 from substrateinterface import SubstrateInterface
 from collections import OrderedDict
 import subprocess
-import time
+from utils import progress_of_loop
 
 
 class StakingSnapshot:
@@ -187,7 +186,6 @@ class StakingSnapshot:
         path_to_snapshot_file = (
             path_to_snapshot + str(self.era) + "_snapshot.json"
         )
-        start_time = time.time()
         result = subprocess.run(
             [
                 "../hackingtime/target/debug/sequential_phragmen_custom",
@@ -198,9 +196,6 @@ class StakingSnapshot:
             stdout=subprocess.PIPE,
             text=True,
         )
-        end_time = time.time()
-        time_elapsed = end_time - start_time
-        # print("Time elapsed: {:.2f} seconds".format(time_elapsed))
         # Extract the output of the Rust script
         output = result.stdout
 
@@ -229,12 +224,7 @@ class StakingSnapshot:
         full_voterlist = []
         bagscounter = 0
         for bag in voter_pointers_dict:
-            bagscounter += 1
-            bagsprogress = (bagscounter / len(voter_pointers_dict)) * 100
-            sys.stdout.write(
-                "Getting Accounts from Bags Progress: %d%%   \r" % bagsprogress
-            )
-            sys.stdout.flush()
+            progress_of_loop(bagscounter, voter_pointers_dict, "Bags")
             if len(full_voterlist) == self.current_nominator_max:
                 break
             head = voter_pointers_dict[bag]["head"]
@@ -252,12 +242,7 @@ class StakingSnapshot:
         voters = []
         counter = 0
         for voter in full_voterlist:
-            counter += 1
-            progress = (counter / self.current_nominator_max) * 100
-            sys.stdout.write(
-                "Getting Bond and Targets Progress: %d%%   \r" % progress
-            )
-            sys.stdout.flush()
+            progress_of_loop(counter, full_voterlist, "Nominators")
             nominator = []
             bond = self.get_specific_nominator_exposure(voter)
             specific_nominator_targets = self.get_specific_nominator_vote(

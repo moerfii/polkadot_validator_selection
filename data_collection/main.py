@@ -1,10 +1,9 @@
 import json
 import os
-import sys
 import pandas as pd
 from src.get_data import StakingSnapshot
 from src.preprocessor import Preprocessor
-from src.utils import read_json
+from src.utils import read_json, progress_of_loop
 import argparse
 from pathlib import Path
 
@@ -45,10 +44,7 @@ def get_data(
     block_numbers.sort_values("Era", inplace=True)
     block_number_counter = 0
     for index, row in block_numbers.iterrows():
-        block_number_counter += 1
-        bagsprogress = (block_number_counter / len(block_numbers)) * 100
-        sys.stdout.write("Getting Data Progress: %d%%   \r" % bagsprogress)
-        sys.stdout.flush()
+        progress_of_loop(block_number_counter, block_numbers, "get_data")
 
         snapshot_data = None
         nominator_mapping = None
@@ -142,17 +138,13 @@ def preprocess_data(req_dirs):
     solution_path = req_dirs[2]
     solutions = sorted(os.listdir(solution_path))
     solutions = [sol for sol in solutions if "assignments" not in sol]
-    solutions_list = []
     snapshots_list = []
     snapshot_counter = 0
     for index, snap in enumerate(snapshots):
         era = [int(s) for s in snap.split("_") if s.isdigit()][0]
-        snapshot_counter += 1
-        bagsprogress = (snapshot_counter / len(snapshots)) * 100
-        sys.stdout.write(
-            "Preprocessing Snapshots Progress: %d%%   \r" % bagsprogress
+        progress_of_loop(
+            snapshot_counter, snapshots, "Preprocessing Snapshots"
         )
-        sys.stdout.flush()
         with open(snap_path + snap, "r") as snapjson:
             snapshot_json = json.load(snapjson)
         with open(solution_path + solutions[index], "r") as soljson:
@@ -218,6 +210,12 @@ def setup():
 
 
 def preprocess_bond_distribution_data(req_dirs):
+    """
+
+    :param req_dirs:
+    :return:
+    """
+
     snap_path = req_dirs[0]
     snapshots = sorted(os.listdir(snap_path))
     snapshots = [snap for snap in snapshots if "mapping" not in snap]
@@ -249,12 +247,9 @@ def preprocess_bond_distribution_data(req_dirs):
     assignment_dicts = []
     snapshot_counter = 0
     for assignment_file in solutions[batch_size:]:
-        snapshot_counter += 1
-        bagsprogress = (snapshot_counter / len(snapshots)) * 100
-        sys.stdout.write(
-            "Preprocessing assignments Progress: %d%%   \r" % bagsprogress
+        progress_of_loop(
+            snapshot_counter, solutions, "Preprocessing Assignments"
         )
-        sys.stdout.flush()
         assignment_dict = {}
         assignments, jsonfile = read_json(solution_path + assignment_file)
         for assignment in assignments:
@@ -274,12 +269,9 @@ def preprocess_bond_distribution_data(req_dirs):
             for s in snapshots[batch_size + index].split("_")
             if s.isdigit()
         ][0]
-        snapshot_counter += 1
-        bagsprogress = (snapshot_counter / len(snapshots)) * 100
-        sys.stdout.write(
-            "Preprocessing finals Progress: %d%%   \r" % bagsprogress
+        progress_of_loop(
+            snapshot_counter, assignment_dicts, "Preprocessing Assignments"
         )
-        sys.stdout.flush()
         final_dictionary = []
         sub_final_dictionary = {}
         snap = snapshot_dicts[index]

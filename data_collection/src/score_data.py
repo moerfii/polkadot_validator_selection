@@ -5,13 +5,12 @@ import numpy as np
 
 
 class ScoringUtility:
-
     def __init__(self):
         self.calculated_score = None
 
     @staticmethod
     def read_json(path):
-        with open(path, 'r') as jsonfile:
+        with open(path, "r") as jsonfile:
             return json.load(jsonfile)
 
     @staticmethod
@@ -46,17 +45,23 @@ class ScoringUtility:
             print("Bad solution stored")
             return True
         # compare min stake: goal is to maximise: if calculated is worse return False
-        print(f"storedmin: {scores2_array[0]}, calcmin: {int(scores1_array[0])}")
+        print(
+            f"storedmin: {scores2_array[0]}, calcmin: {int(scores1_array[0])}"
+        )
         if scores2_array[0] > int(scores1_array[0]):
             return False
 
         # compare sum stakes: goal is to maximise: if calculated is worse return False
-        print(f"storedsum: {scores2_array[1]}, calcsum: {int(scores1_array[1])}")
+        print(
+            f"storedsum: {scores2_array[1]}, calcsum: {int(scores1_array[1])}"
+        )
         if scores2_array[1] > int(scores1_array[1]):
             return False
 
         # compare variance of stakes: goal is to minimise: if calculated is worse return False
-        print(f"storedvar: {scores2_array[2]}, calcvar: {int(scores1_array[2])}")
+        print(
+            f"storedvar: {scores2_array[2]}, calcvar: {int(scores1_array[2])}"
+        )
         if scores2_array[2] < int(scores1_array[2]):
             return False
         return True
@@ -80,9 +85,11 @@ if __name__ == "__main__":
     for dir in dirs1:
         print(dir)
         path = "../data/stored_solutions_data/" + dir
-        scores2.append(np.asarray(scorer.read_json(path)['raw_solution']['score']))
+        scores2.append(
+            np.asarray(scorer.read_json(path)["raw_solution"]["score"])
+        )
 
     for index, value in enumerate(scores1):
         print(index)
-        print(scorer.is_score1_better_than_score2(value,scores2[index]))
+        print(scorer.is_score1_better_than_score2(value, scores2[index]))
     print()
