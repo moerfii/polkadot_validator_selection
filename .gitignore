@@ -1,12 +1,26 @@
-data_collection/snapshot_data/
-data_collection/signedphase_blocknumbers/
-data_collection/solutionstored_blocknumbers/
+data_collection/data/snapshot_data/
+data_collection/block_numbers/signedphase_blocknumbers/
+data_collection/block_numbers/solutionstored_blocknumbers/
 data_collection/storedsolutions/
 data_collection/config.json
 data_collection/964_full_voterlist.json
 data_collection/964_fullfull_voterlist.json
 .idea/
-
+notebooks/money.csv
+hackingtime/59_assignments.json
+hackingtime/59_winners.json
+data_collection/data
+data_collection/money.csv
+data_collection/snapshot_encoded.parquet
+docs
+notebooks/encoder.h5
+data_collection/df_bond_distribution.csv
+data_collection/df_bond_distribution_0.csv
+data_collection/df_bond_distribution_1.csv
+data_collection/df_bond_distribution_2.csv
+data_collection/snapshot_with_solution.csv
+data_collection/block_numbers/new_block_numbers_dataframe.parquet
+data_collection/block_numbers/signedphase_blocknumbers.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
