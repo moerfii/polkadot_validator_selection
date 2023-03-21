@@ -2,7 +2,6 @@ import json
 import sys
 
 import pandas as pd
-from src.get_data import StakingSnapshot
 
 
 def read_json(path_to_json):
@@ -69,13 +68,14 @@ def save_file(dataframe):
 
 def progress_of_loop(counter, total, name):
     counter += 1
-    progress = (counter / len(total)) * 100
-    sys.stdout.write(f"Progress of {name}: {progress} %   \r")
+    progress = int((counter / len(total)) * 100)
+    sys.stdout.write(f"Progress of {name}: {progress}%   \r")
     sys.stdout.flush()
+    return counter
 
 
 if __name__ == "__main__":
-    snapshot = StakingSnapshot()
+    #snapshot = StakingSnapshot()
     df = group_data(
         "../block_numbers/signedphase_blocknumbers.json",
         "../block_numbers/solutionstored_blocknumbers.json",

@@ -3,7 +3,7 @@ import ssl
 from substrateinterface import SubstrateInterface
 from collections import OrderedDict
 import subprocess
-from utils import progress_of_loop
+from src.utils import progress_of_loop
 
 
 class StakingSnapshot:

@@ -3,7 +3,7 @@ import os
 import pandas as pd
 from src.get_data import StakingSnapshot
 from src.preprocessor import Preprocessor
-from src.utils import read_json, progress_of_loop
+from src.utils import read_json, progress_of_loop, read_parquet
 import argparse
 from pathlib import Path
 
@@ -209,6 +209,8 @@ def setup():
     return StakingSnapshot(), path, required_directories, args
 
 
+
+
 def preprocess_bond_distribution_data(req_dirs):
     """
 
@@ -223,15 +225,16 @@ def preprocess_bond_distribution_data(req_dirs):
     solutions = sorted(os.listdir(solution_path))
     solutions = [sol for sol in solutions if "assignments" in sol]
 
-    batch_size = 300
-
     # todo: account for rounding errors in total_bond/ proportional bond
 
     """
-    get all nominators and their stake
+    get all nominators and their stake // basically snapshot in dict form
     """
+    """    
     snapshot_dicts = []
+    snapshot_counter = 0
     for snap_file in snapshots[batch_size:]:
+        snapshot_counter = progress_of_loop(snapshot_counter, snapshots, "Preprocessing Snapshots")
         snapshot_dict = {}
         snap, jsonfile = read_json(snap_path + snap_file)
         for nominator in snap["voters"]:
@@ -240,14 +243,15 @@ def preprocess_bond_distribution_data(req_dirs):
             snapshot_dict[nominator[0]].append(nominator[2])
         snapshot_dicts.append(snapshot_dict)
         jsonfile.close()
-
     """
-    get all assignments and their stake
+    """
+    get all assignments and their stake // solution in dict form
+    """
     """
     assignment_dicts = []
     snapshot_counter = 0
     for assignment_file in solutions[batch_size:]:
-        progress_of_loop(
+        snapshot_counter = progress_of_loop(
             snapshot_counter, solutions, "Preprocessing Assignments"
         )
         assignment_dict = {}
@@ -256,27 +260,41 @@ def preprocess_bond_distribution_data(req_dirs):
             assignment_dict[assignment[0]] = assignment[1]
         assignment_dicts.append(assignment_dict)
         jsonfile.close()
+    """
+    """
+    nominator: [validator, specific_proportional_bond, actual_bond (here from snap[index] * assignment) 
+    """
 
-    """
-    nominator: [validator, specific_proportional_bond, actual_bond (da vo snap[index] * assignment) 
-    """
     final_dictionaries = []
     sub_final_dictionaries = []
-    snapshot_counter = 0
-    for index, assignments in enumerate(assignment_dicts):
-        era = [
-            int(s)
-            for s in snapshots[batch_size + index].split("_")
-            if s.isdigit()
-        ][0]
-        progress_of_loop(
-            snapshot_counter, assignment_dicts, "Preprocessing Assignments"
+    progress_counter = 0
+    eras = []
+    for snapshot in snapshots:
+        eras.append([int(s) for s in snapshot.split("_") if s.isdigit()][0])
+    for index, era in enumerate(eras):
+        progress_counter = progress_of_loop(
+            progress_counter, eras, "Preprocessing Assignments"
         )
         final_dictionary = []
         sub_final_dictionary = {}
-        snap = snapshot_dicts[index]
-        for nominator, assignment in assignments.items():
-            bond = snap[nominator][0]
+
+        snap_dictionary = {}
+        snap_file = snapshots[index]
+        snap, jsonfile = read_json(snap_path + snap_file)
+        for nominator in snap["voters"]:
+            snap_dictionary[nominator[0]] = []
+            snap_dictionary[nominator[0]].append(nominator[1])
+            snap_dictionary[nominator[0]].append(nominator[2])
+
+
+        assignment_file = solutions[index]
+        assignments_dict = {}
+        assignments, jsonfile = read_json(solution_path + assignment_file)
+        for assignment in assignments:
+            assignments_dict[assignment[0]] = assignment[1]
+
+        for nominator, assignment in assignments_dict.items():
+            bond = snap_dictionary[nominator][0]
             for validator in assignment:
                 proportional_bond = int(bond / len(assignment))
                 number_of_validators = len(assignment)
@@ -310,14 +328,11 @@ def preprocess_bond_distribution_data(req_dirs):
     return pd.concat(dataframes)
 
 
-if __name__ == "__main__":
-    snapshot, path, req_dirs, args = setup()
-
-    """
-    #snapshot.create_substrate_connection(path)
+def get_model_1_data():
+    # snapshot.create_substrate_connection(path)
     ## MODEL 1 DATA
     block_numbers = read_parquet("./block_numbers/new_block_numbers_dataframe.parquet")
-    #get_data(snapshot, block_numbers, True, req_dirs)
+    # get_data(snapshot, block_numbers, True, req_dirs)
     if args.mode == "history":
         print('history')
         get_data(snapshot, block_numbers, True, req_dirs)
@@ -338,8 +353,10 @@ if __name__ == "__main__":
                        9: "era"},
               inplace=True)
 
-    #if args.save is not None:
-    df.to_csv('snapshot_with_solution.csv')"""
+    # if args.save is not None:
+    df.to_csv('snapshot_with_solution.csv')
+
+def get_model_2_data():
     ## MODEL2 DATA
     # get predicted active set (for now winners json?)
     # go through nominators, (open snapshot + assignments json) drop all non-active set validators
@@ -361,3 +378,9 @@ if __name__ == "__main__":
     )
     df.to_csv("df_bond_distribution_2.csv")
     print("done!")
+
+
+if __name__ == "__main__":
+    snapshot, path, req_dirs, args = setup()
+    #get_model_1_data()
+    get_model_2_data()
