@@ -1,9 +1,16 @@
 import json
 import os
+
+import numpy as np
 import pandas as pd
 from src.get_data import StakingSnapshot
 from src.preprocessor import Preprocessor
-from src.utils import read_json, progress_of_loop, read_parquet
+from src.utils import (
+    read_json,
+    progress_of_loop,
+    read_parquet,
+    partition_into_batches,
+)
 import argparse
 from pathlib import Path
 
@@ -130,7 +137,7 @@ def get_data(
             )
 
 
-def preprocess_data(req_dirs):
+def preprocess_active_set_data(req_dirs):
     # process snapshots
     snap_path = req_dirs[0]
     snapshots = sorted(os.listdir(snap_path))
@@ -209,7 +216,9 @@ def setup():
     return StakingSnapshot(), path, required_directories, args
 
 
-def handle_era_data(eras, snapshots, solutions, snap_path, solution_path):
+def preprocess_distribution_data(
+    eras, snapshots, assignment_files, snap_path, solution_path, winners_files
+):
     final_dictionaries = []
     sub_final_dictionaries = []
     progress_counter = 0
@@ -217,6 +226,26 @@ def handle_era_data(eras, snapshots, solutions, snap_path, solution_path):
         progress_counter = progress_of_loop(
             progress_counter, eras, "Preprocessing Assignments"
         )
+
+        try:
+            prev_winners_file = winners_files[index - 1]
+            prev_winners, jsonfile = read_json(
+                solution_path + prev_winners_file
+            )
+            previous_era_min_stake = np.min(
+                [winner[1] for winner in prev_winners]
+            )
+            previous_era_sum_stake = np.sum(
+                [winner[1] for winner in prev_winners]
+            )
+            previous_era_variance_stake = np.var(
+                [winner[1] for winner in prev_winners]
+            )
+        except IndexError:
+            previous_era_min_stake = 0
+            previous_era_sum_stake = 0
+            previous_era_variance_stake = 0
+
         final_dictionary = []
         sub_final_dictionary = {}
 
@@ -228,7 +257,7 @@ def handle_era_data(eras, snapshots, solutions, snap_path, solution_path):
             snap_dictionary[nominator[0]].append(nominator[1])
             snap_dictionary[nominator[0]].append(nominator[2])
 
-        assignment_file = solutions[index]
+        assignment_file = assignment_files[index]
         assignments_dict = {}
         assignments, jsonfile = read_json(solution_path + assignment_file)
         for assignment in assignments:
@@ -250,6 +279,9 @@ def handle_era_data(eras, snapshots, solutions, snap_path, solution_path):
                         number_of_validators,
                         full_bond,
                         solution_bond,
+                        previous_era_min_stake,
+                        previous_era_sum_stake,
+                        previous_era_variance_stake,
                     ]
                 )
                 try:
@@ -263,8 +295,9 @@ def handle_era_data(eras, snapshots, solutions, snap_path, solution_path):
         for values in final:
             values.append(sub_final_dictionaries[index][values[1]])
 
+    # we drop the first dataframe due to the min, sum and var being 0.
     dataframes = []
-    for sub_df in final_dictionaries:
+    for sub_df in final_dictionaries[1:]:
         dataframes.append(pd.DataFrame.from_records(sub_df))
     return pd.concat(dataframes)
 
@@ -282,7 +315,7 @@ def get_model_1_data():
     else:
         print("subscribe")
 
-    df = preprocess_data(req_dirs)
+    df = preprocess_active_set_data(req_dirs)
 
     df.rename(
         columns={
@@ -310,13 +343,14 @@ def prepare_preprocess_distribution_data(req_dirs):
     snapshots = [snap for snap in snapshots if "mapping" not in snap]
     solution_path = req_dirs[2]
     solutions = sorted(os.listdir(solution_path))
-    solutions = [sol for sol in solutions if "assignments" in sol]
+    assignments = [sol for sol in solutions if "assignments" in sol]
+    winners = [sol for sol in solutions if "winners" in sol]
 
     # todo: account for rounding errors in total_bond/ proportional bond
     eras = []
     for snapshot in snapshots:
         eras.append([int(s) for s in snapshot.split("_") if s.isdigit()][0])
-    return eras, snapshots, solutions, snap_path, solution_path
+    return eras, snapshots, assignments, snap_path, solution_path, winners
 
 
 def get_model_2_data(maxbatchsize=250):
@@ -329,18 +363,16 @@ def get_model_2_data(maxbatchsize=250):
     (
         eras,
         snapshots,
-        solutions,
+        assignments,
         snap_path,
         solution_path,
+        winners,
     ) = prepare_preprocess_distribution_data(req_dirs)
 
-    eras = [
-        eras[i * maxbatchsize : (i + 1) * maxbatchsize]
-        for i in range((len(eras) + maxbatchsize - 1) // maxbatchsize)
-    ]
+    eras = partition_into_batches(eras, maxbatchsize)
     for index, sub_eras in enumerate(eras):
-        df = handle_era_data(
-            sub_eras, snapshots, solutions, snap_path, solution_path
+        df = preprocess_distribution_data(
+            sub_eras, snapshots, assignments, snap_path, solution_path, winners
         )
         df.rename(
             columns={
@@ -352,10 +384,13 @@ def get_model_2_data(maxbatchsize=250):
                 5: "total_bond",
                 6: "solution_bond",
                 7: "total_proportional_bond",
+                8: "prev_min_stake",
+                9: "prev_sum_stake",
+                10: "prev_variance_stake",
             },
             inplace=True,
         )
-        filename = "df_bond_distribution_{}.csv".format(index)
+        filename = "data/model_2/df_bond_distribution_{}.csv".format(index)
         df.to_csv(filename)
     print("done!")
 
