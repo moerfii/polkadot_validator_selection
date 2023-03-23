@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "data_collection"
 version = "0.1"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.8.10"
 dependencies = ["numpy>=1.23.5", "pandas>=1.5.2", "substrate-interface>=1.4.2", "pyarrow>=11.0.0", ]
 
 [project.optional-dependencies]
