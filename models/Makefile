@@ -10,6 +10,11 @@ install:
 install-dev: install
 	python -m pip install -e ".[dev]"
 
+## Build dependencies
+build:
+	pip-compile --generate-hashes --resolver=backtracking --output-file=requirements.txt pyproject.toml
+	pip-compile --generate-hashes --resolver=backtracking --extra=dev --output-file=requirements-dev.txt pyproject.toml
+
 ## Delete all temporary files
 clean:
 	rm -rf .ipynb_checkpoints
@@ -32,7 +37,7 @@ format:
 
 ## Run tests
 test:
-	pytest --cov=src --cov-report xml --log-level=WARNING --disable-pytest-warnings
+	python -m unittest ./tests/test_*.py
 
 ## Run checks (ruff + test)
 check:

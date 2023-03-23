@@ -1,4 +1,3 @@
-
 import numpy as np
 
 
@@ -9,9 +8,9 @@ go through nominators, add up total stakes and adjust to 100%
 implement various adjustment strategies
 """
 
-class AdjustmentTool:
 
-    def even_split_strategy(self,dataframe):
+class AdjustmentTool:
+    def even_split_strategy(self, dataframe):
         """
         This function groups by nominator, sums up the prediction values, compares with the total bond (which is the 100% benchmark) and adjusts the prediction values accordingly
         There are two cases:
@@ -31,30 +30,46 @@ class AdjustmentTool:
             print(counter)
             nominator_df = dataframe.loc[dataframe["nominator"] == nominator]
             while (nominator_df["prediction"].values < 0).any():
-                nominator_df = self.adjust_negative_stakes_substrategy(nominator_df)
+                nominator_df = self.adjust_negative_stakes_substrategy(
+                    nominator_df
+                )
             total_bond = nominator_df["total_bond"].iloc[0]
-            difference_to_total_bond = np.subtract(total_bond,nominator_df["prediction"].sum())
-            mod_difference_to_total_bond = np.mod(difference_to_total_bond,len(nominator_df))
+            difference_to_total_bond = np.subtract(
+                total_bond, nominator_df["prediction"].sum()
+            )
+            mod_difference_to_total_bond = np.mod(
+                difference_to_total_bond, len(nominator_df)
+            )
             if not mod_difference_to_total_bond:
-                prediction_sum_difference = np.int(np.divide(difference_to_total_bond, np.int(len(nominator_df))))
+                prediction_sum_difference = int(
+                    np.divide(
+                        difference_to_total_bond, int(len(nominator_df))
+                    )
+                )
             else:
-                prediction_sum_difference = np.int(np.divide(difference_to_total_bond-mod_difference_to_total_bond, len(nominator_df)))
-                nominator_df["prediction"].iloc[0] = np.int(nominator_df["prediction"].iloc[0] + mod_difference_to_total_bond)
+                prediction_sum_difference = int(
+                    np.divide(
+                        difference_to_total_bond
+                        - mod_difference_to_total_bond,
+                        len(nominator_df),
+                    )
+                )
+                nominator_df["prediction"].iloc[0] = int(
+                    nominator_df["prediction"].iloc[0]
+                    + mod_difference_to_total_bond
+                )
 
-            nominator_df.loc[:,"prediction"] = nominator_df["prediction"].add(prediction_sum_difference)
-            sanity_check = np.subtract(total_bond,nominator_df["prediction"].sum())
+            nominator_df.loc[:, "prediction"] = nominator_df["prediction"].add(
+                prediction_sum_difference
+            )
+            sanity_check = np.subtract(
+                total_bond, nominator_df["prediction"].sum()
+            )
             dataframe.loc[dataframe["nominator"] == nominator] = nominator_df
             print(sanity_check)
         return dataframe
 
-
     def weighted_split_strategy(self):
-        nominators = dataframe["nominator"].unique()
-        for nominator in nominators:
-            nominator_df = dataframe.loc[dataframe["nominator"] == nominator]
-            prediction_sum_difference = int((nominator_df["prediction"].sum() - nominator_df["total_bond"].iloc[0])/len(nominator_df))
-            nominator_df["solution_bond"] = nominator_df["solution_bond"].apply(lambda x: 100 / len(nominator_df))
-            dataframe.loc[dataframe["nominator"] == nominator] = nominator_df
         return
 
     def adjust_top_ends_strategy(self):
@@ -71,10 +86,16 @@ class AdjustmentTool:
         :param dataframe:
         :return:
         """
-        max_index = dataframe['prediction'].idxmax()
-        value_to_subtract = dataframe.loc[dataframe['prediction'] < 0, 'prediction'].abs().sum()
-        dataframe.loc[max_index, 'prediction'] = dataframe.loc[max_index, 'prediction'] - value_to_subtract
-        dataframe.loc[dataframe['prediction'] < 0, 'prediction'] = 0
+        max_index = dataframe["prediction"].idxmax()
+        value_to_subtract = (
+            dataframe.loc[dataframe["prediction"] < 0, "prediction"]
+            .abs()
+            .sum()
+        )
+        dataframe.loc[max_index, "prediction"] = (
+            dataframe.loc[max_index, "prediction"] - value_to_subtract
+        )
+        dataframe.loc[dataframe["prediction"] < 0, "prediction"] = 0
         return dataframe
 
 

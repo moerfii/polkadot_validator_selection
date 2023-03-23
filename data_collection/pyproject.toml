@@ -7,16 +7,13 @@ name = "data_collection"
 version = "0.1"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["fastapi>=0.88.0", "uvicorn>=0.20.0", "pandas"]
+dependencies = ["numpy>=1.23.5", "pandas>=1.5.2", "substrate-interface>=1.4.2"]
 
 [project.optional-dependencies]
 dev = [
-  "black>=22.10.0",
-  "pytest>=7.2.0",
-  "pytest-cov>=4.0.0",
+  "black>=23.1.0",
   "ruff>=0.0.47",
-  "watchdog>=2.1.9",
-  "httpx>=0.23.2",
+  "pip-tools>=6.12.3",
 ]
 
 [tool.ruff]

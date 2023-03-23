@@ -228,6 +228,7 @@ def preprocess_distribution_data(
         )
 
         try:
+
             prev_winners_file = winners_files[index - 1]
             prev_winners, jsonfile = read_json(
                 solution_path + prev_winners_file
@@ -241,6 +242,7 @@ def preprocess_distribution_data(
             previous_era_variance_stake = np.var(
                 [winner[1] for winner in prev_winners]
             )
+
         except IndexError:
             previous_era_min_stake = 0
             previous_era_sum_stake = 0
@@ -353,7 +355,7 @@ def prepare_preprocess_distribution_data(req_dirs):
     return eras, snapshots, assignments, snap_path, solution_path, winners
 
 
-def get_model_2_data(maxbatchsize=250):
+def get_model_2_data(maxbatchsize=150):
     ## MODEL2 DATA
     # get predicted active set (for now winners json?)
     # go through nominators, (open snapshot + assignments json) drop all non-active set validators
@@ -383,10 +385,10 @@ def get_model_2_data(maxbatchsize=250):
                 4: "number_of_validators",
                 5: "total_bond",
                 6: "solution_bond",
-                7: "total_proportional_bond",
-                8: "prev_min_stake",
-                9: "prev_sum_stake",
-                10: "prev_variance_stake",
+                7: "prev_min_stake",
+                8: "prev_sum_stake",
+                9: "prev_variance_stake",
+                10: "total_proportional_bond",
             },
             inplace=True,
         )

@@ -1,14 +1,16 @@
 import argparse
-import os
-
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LinearRegression
-import pandas as pd
-from src.adjustment import AdjustmentTool
-from data_collection.src.score_data import ScoringUtility
 import json
-from src.score import ScoringTool
+import pandas as pd
+import matplotlib.pyplot as plt
+from math import pi
+
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn import linear_model
+
+from src.adjustment import AdjustmentTool
+from src.score import ScoringTool, ScoringUtility
 
 
 def prepare_data(dataframe, test_era):
@@ -20,6 +22,9 @@ def prepare_data(dataframe, test_era):
         "number_of_validators",
         "total_proportional_bond",
         "era",
+        "prev_min_stake",
+        "prev_sum_stake",
+        "prev_variance_stake",
     ]  # potentially add total proportional bond i.e grouping by validator
     x = dataframe.loc[:, features]
     # x_scaled = StandardScaler().fit_transform(x)
@@ -37,42 +42,25 @@ def predict(model, X_test):
 
 
 def train(model, X_train, y_train):
-    model.fit(X_train, y_train)
+    model.fit(X_train, y_train.values.ravel())
 
 
-def model_selection(model):
+def model_selection(model="randomforest"):
     """
     select model via cli
     :return: model
     """
     if model == "linear":
         return LinearRegression()
-    elif model == "logistic":
-        return LogisticRegression()
+    elif model == "gradientboosting":
+        return GradientBoostingRegressor()
     elif model == "randomforest":
-        return RandomForestRegression()
-    elif model == "decisiontree":
-        return DecisionTreeClassifier()
-    elif model == "knn":
-        return KNeighborsClassifier()
-    elif model == "svm":
-        return SVC()
-    elif model == "naivebayes":
-        return GaussianNB()
-    elif model == "perceptron":
-        return Perceptron()
-    elif model == "sgd":
-        return SGDClassifier()
-    elif model == "linear":
-        return LinearSVC()
-    elif model == "mlp":
-        return MLPClassifier()
+        return RandomForestRegressor()
     elif model == "ridge":
-        return RidgeClassifier()
-    elif model == "sgd":
-        return SGDClassifier()
-    elif model == "passiveaggressive":
-        return PassiveAggressiveClassifier()
+        return linear_model.Ridge(alpha=0.5)
+    elif model == "lasso":
+        return linear_model.Lasso(alpha=0.1)
+
 
 
 def prepare(*args):
@@ -81,14 +69,18 @@ def prepare(*args):
     :return:
     """
     # read training data
-    df1 = pd.read_csv("../data_collection/df_bond_distribution_0.csv")
-    # df2 = pd.read_csv("../data_collection/df_bond_distribution_1.csv")
+    df1 = pd.read_csv(
+        "../data_collection/data/model_2/df_bond_distribution_0.csv"
+    )
+    df2 = pd.read_csv(
+        "../data_collection/data/model_2/df_bond_distribution_1.csv"
+    )
     # df3 = pd.read_csv("../data_collection/df_bond_distribution_2.csv")
-    # df = pd.concat([df1, df2, df3])
+    df = pd.concat([df1, df2])
     # df.rename(columns={"Unnamed: 0": "nominator"}, inplace=True)
 
     # split data into train and test (provide era to test on) # todo: in the future the test era should be the last era
-    X_train, X_test, y_train, y_test = prepare_data(df1, test_era=739)
+    X_train, X_test, y_train, y_test = prepare_data(df, test_era=739)
 
     # prepare predicted dataframe
     predicted_dataframe = pd.concat([X_test, y_test], axis=1)
@@ -115,17 +107,40 @@ def score(adjusted_predicted_dataframe):
     return scorer.score_solution(predicted_dataframe["prediction"])
 
 
+def plot_comparison(score_of_prediction, score_of_calculated):
+    title_list = ["max(minStake)", "max(sumStake)", "min(varStake)"]
+
+    fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(12, 4))
+
+    for i in range(3):
+        ax = axes[i]
+        ax.bar(
+            ["Predicted Solution", "Calculated Solution"],
+            [score_of_prediction[i], score_of_calculated[i]],
+        )
+        ax.set_title(title_list[i])
+
+    plt.show()
+
+
 def compare(score_of_prediction, era):
     # todo: should pull the calculated solution via storage query
     comparer = ScoringUtility()
+    filename = (
+        f"../data_collection/data/calculated_solutions_data/{era}_winners.json"
+    )
     with open(
-        "../data_collection/data/calculated_solutions_data/739_winners.json",
+        filename,
         "r",
     ) as jsonfile:
         stored_solution = json.load(jsonfile)
     score_of_calculated = comparer.calculate_score(stored_solution)
-    return comparer.is_score1_better_than_score2(
-        score_of_prediction, score_of_calculated
+    return (
+        comparer.is_score1_better_than_score2(
+            score_of_prediction, score_of_calculated
+        ),
+        score_of_prediction,
+        score_of_calculated,
     )
 
 
@@ -146,25 +161,42 @@ def main(args):
 
     # prepare data
     X_train, X_test, y_train, y_test, predicted_dataframe = prepare(era)
+    print("data prepared")
 
     # select model
     model = model_selection(model)
 
     # train model
     train(model, X_train, y_train)
+    print("model trained")
 
     # predict & append to dataframe
     predicted_dataframe["prediction"] = predict(model, X_test)
+    print("predictions made")
 
     # adjust predictions to 100%
     adjusted_predicted_dataframe = adjust(predicted_dataframe)
+    print("predictions adjusted")
 
     # score predictions
     score_of_prediction = score(adjusted_predicted_dataframe)
+
+    result, score_of_prediction, score_of_calculated = compare(
+        score_of_prediction, era
+    )
+
+    if args.plot:
+        plot_comparison(score_of_prediction, score_of_calculated)
+
     return compare(score_of_prediction, era)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--era", type=int, default=739)
-    main(parser.parse_args())
+    parser.add_argument("-m", "--model", type=str, default="ridge", help="linear, gradientboosting, randomforest, ridge, lasso")
+    parser.add_argument("-p", "--plot", action="store_true")
+    result, score_of_prediction, score_of_calculated = main(
+        parser.parse_args()
+    )
+    print(result)

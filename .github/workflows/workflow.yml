@@ -1,0 +1,30 @@
+name: Run CI
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+    paths-ignore:
+      - "README.md"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.11"
+
+      - name: Install dev requirements
+        run: make install-dev            ## Install dev requirements // define them correctly in pyproject.toml
+
+      - name: Check formatting
+        run: make check
+
+      - name: Run tests
+        run: make test

@@ -74,6 +74,13 @@ def progress_of_loop(counter, total, name):
     return counter
 
 
+def partition_into_batches(array, maxbatchsize):
+    return [
+        array[i * maxbatchsize : (i + 1) * maxbatchsize]
+        for i in range((len(array) + maxbatchsize - 1) // maxbatchsize)
+    ]
+
+
 if __name__ == "__main__":
     #snapshot = StakingSnapshot()
     df = group_data(
