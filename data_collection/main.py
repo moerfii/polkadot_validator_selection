@@ -149,7 +149,7 @@ def preprocess_active_set_data(req_dirs):
     snapshot_counter = 0
     for index, snap in enumerate(snapshots):
         era = [int(s) for s in snap.split("_") if s.isdigit()][0]
-        progress_of_loop(
+        snapshot_counter = progress_of_loop(
             snapshot_counter, snapshots, "Preprocessing Snapshots"
         )
         with open(snap_path + snap, "r") as snapjson:
@@ -399,5 +399,5 @@ def get_model_2_data(maxbatchsize=150):
 
 if __name__ == "__main__":
     snapshot, path, req_dirs, args = setup()
-    # get_model_1_data()
+    get_model_1_data()
     get_model_2_data()
