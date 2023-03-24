@@ -399,5 +399,6 @@ def get_model_2_data(maxbatchsize=150):
 
 if __name__ == "__main__":
     snapshot, path, req_dirs, args = setup()
+    snapshot.create_substrate_connection(path)
     get_model_1_data()
     get_model_2_data()
