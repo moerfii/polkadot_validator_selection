@@ -51,7 +51,7 @@ def get_data(
     block_numbers.sort_values("Era", inplace=True)
     block_number_counter = 0
     for index, row in block_numbers.iterrows():
-        progress_of_loop(block_number_counter, block_numbers, "get_data")
+        block_number_counter = progress_of_loop(block_number_counter, block_numbers, "get_data")
 
         snapshot_data = None
         nominator_mapping = None
