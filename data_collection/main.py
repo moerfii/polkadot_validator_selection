@@ -75,9 +75,8 @@ def get_data(
         # check if the era has already been handled, improves speed of system overall.
         block_number_snapshot = row["SignedPhaseBlock"]
         block_number_solution = row["SolutionStoredBlock"] + 1
-        if  os.path.exists(snapshot_path_file): # todo: reminder: change to not os.path.exists
+        if  not os.path.exists(snapshot_path_file): # todo: reminder: change to not os.path.exists
             # acquire snapshot
-            print('whats happening here?')
             snapshot_instance.set_block_number(block_number_snapshot)
             snapshot_data = get_snapshot_data(snapshot_instance)
             (
