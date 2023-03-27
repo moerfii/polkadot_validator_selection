@@ -13,6 +13,7 @@ from src.utils import (
 )
 import argparse
 from pathlib import Path
+from websocket._exceptions import WebSocketConnectionClosedException
 
 """
 step1: acquire data
@@ -74,8 +75,9 @@ def get_data(
         # check if the era has already been handled, improves speed of system overall.
         block_number_snapshot = row["SignedPhaseBlock"]
         block_number_solution = row["SolutionStoredBlock"] + 1
-        if not os.path.exists(snapshot_path_file):
+        if  os.path.exists(snapshot_path_file): # todo: reminder: change to not os.path.exists
             # acquire snapshot
+            print('whats happening here?')
             snapshot_instance.set_block_number(block_number_snapshot)
             snapshot_data = get_snapshot_data(snapshot_instance)
             (
@@ -181,6 +183,9 @@ def preprocess_active_set_data(req_dirs):
 
 
 def environment_handler():
+    base_dirs = os.listdir("./")
+    if "data" not in base_dirs:
+        os.mkdir("./data/")
     dirs = os.listdir("./data/")
     required_directories = [
         "data/snapshot_data/",
@@ -311,6 +316,7 @@ def get_model_1_data():
         "./block_numbers/new_block_numbers_dataframe.parquet"
     )
     # get_data(snapshot, block_numbers, True, req_dirs)
+
     if args.mode == "history":
         print("history")
         get_data(snapshot, block_numbers, True, req_dirs)
