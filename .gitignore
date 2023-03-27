@@ -19,7 +19,6 @@ data_collection/df_bond_distribution_0.csv
 data_collection/df_bond_distribution_1.csv
 data_collection/df_bond_distribution_2.csv
 data_collection/snapshot_with_solution.csv
-data_collection/block_numbers/new_block_numbers_dataframe.parquet
 data_collection/block_numbers/signedphase_blocknumbers.json
 
 # Byte-compiled / optimized / DLL files
