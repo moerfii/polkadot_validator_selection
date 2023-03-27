@@ -46,7 +46,7 @@ class StakingSnapshot:
 
     def set_block_number(self, block_number):
         self.block_number = block_number
-        self.block_hash = self.get_blockhash_from_blocknumber(block_number)
+        self.block_hash = self.get_blockhash_from_blocknumber(self.block_number)
         self.era = str(self.get_era()["index"])
 
     def set_era(self, era):
