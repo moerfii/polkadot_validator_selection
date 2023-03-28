@@ -76,7 +76,7 @@ def get_data(
         block_number_snapshot = row["SignedPhaseBlock"]
         block_number_solution = row["SolutionStoredBlock"] + 1
         try:
-            if  os.path.exists(snapshot_path_file): # todo: reminder: change to not os.path.exists
+            if not os.path.exists(snapshot_path_file): # todo: reminder: change to not os.path.exists
                 # acquire snapshot
                 snapshot_instance.set_block_number(block_number_snapshot)
                 snapshot_data = get_snapshot_data(snapshot_instance)
