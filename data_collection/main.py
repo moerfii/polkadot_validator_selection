@@ -140,8 +140,7 @@ def get_data(
 
         except WebSocketConnectionClosedException:
             print("Connection to node closed, trying to reconnect...")
-            snapshot_instance.create_substrate_connection(config_path=config_path)
-            get_data(snapshot_instance, block_numbers, save_to_json, req_dirs, config_path)
+            main()
 
 
 def preprocess_active_set_data(req_dirs):
@@ -314,7 +313,7 @@ def preprocess_distribution_data(
     return pd.concat(dataframes)
 
 
-def get_model_1_data(config_path):
+def get_model_1_data():
     # snapshot.create_substrate_connection(path)
     ## MODEL 1 DATA
     block_numbers = read_parquet(
@@ -324,7 +323,7 @@ def get_model_1_data(config_path):
 
     if args.mode == "history":
         print("history")
-        get_data(snapshot, block_numbers, True, req_dirs, config_path)
+        get_data(snapshot, block_numbers, True, req_dirs)
     else:
         print("subscribe")
 
@@ -408,8 +407,12 @@ def get_model_2_data(maxbatchsize=150):
     print("done!")
 
 
-if __name__ == "__main__":
+def main():
     snapshot, path, req_dirs, args = setup()
     snapshot.create_substrate_connection(path)
-    get_model_1_data(path)
+    get_model_1_data()
     get_model_2_data()
+
+if __name__ == "__main__":
+    main()
+
