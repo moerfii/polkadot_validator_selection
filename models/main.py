@@ -200,3 +200,5 @@ if __name__ == "__main__":
         parser.parse_args()
     )
     print(result)
+    print(score_of_prediction)
+    print(score_of_calculated)
