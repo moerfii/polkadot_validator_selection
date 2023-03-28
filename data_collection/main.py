@@ -313,7 +313,7 @@ def preprocess_distribution_data(
     return pd.concat(dataframes)
 
 
-def get_model_1_data():
+def get_model_1_data(args, snapshot, req_dirs, path):
     # snapshot.create_substrate_connection(path)
     ## MODEL 1 DATA
     block_numbers = read_parquet(
@@ -365,7 +365,7 @@ def prepare_preprocess_distribution_data(req_dirs):
     return eras, snapshots, assignments, snap_path, solution_path, winners
 
 
-def get_model_2_data(maxbatchsize=150):
+def get_model_2_data(maxbatchsize=150, req_dirs=None):
     ## MODEL2 DATA
     # get predicted active set (for now winners json?)
     # go through nominators, (open snapshot + assignments json) drop all non-active set validators
@@ -410,8 +410,8 @@ def get_model_2_data(maxbatchsize=150):
 def main():
     snapshot, path, req_dirs, args = setup()
     snapshot.create_substrate_connection(path)
-    get_model_1_data()
-    get_model_2_data()
+    get_model_1_data(args, snapshot, req_dirs, path)
+    get_model_2_data(maxbatchsize=150, req_dirs=req_dirs)
 
 if __name__ == "__main__":
     main()
