@@ -1,3 +1,4 @@
+import argparse
 import pickle
 import optuna
 from sklearn.metrics import mean_squared_error
@@ -198,11 +199,16 @@ class Model:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model_type", type=str, default="ridge")
+
+    args = parser.parse_args()
     dataframe = pd.read_csv("../../data_collection/data/model_2/df_bond_distribution_0.csv")
 
-    model = Model(dataframe, "solution_bond", "ridge")
+    model = Model(dataframe, "solution_bond", model_type=args.model_type)
     study = optuna.create_study(direction="minimize")
     study.optimize(model.objective, n_trials=100)
+
 
 
 
