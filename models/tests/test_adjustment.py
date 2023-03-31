@@ -2,6 +2,7 @@ import unittest
 import pandas as pd
 from src.adjustment import AdjustmentTool
 
+
 class AdjustmentTest(unittest.TestCase):
     def test_even_split_strategy(self):
         test_dataframe = pd.DataFrame(
@@ -18,9 +19,11 @@ class AdjustmentTest(unittest.TestCase):
             }
         )
         adjustment_tool = AdjustmentTool()
-        adjusted_dataframe = adjustment_tool.even_split_strategy(test_dataframe)
+        adjusted_dataframe = adjustment_tool.even_split_strategy(
+            test_dataframe
+        )
         self.assertEqual(adjusted_dataframe["prediction"].sum(), 120)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

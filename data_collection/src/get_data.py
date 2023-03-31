@@ -183,9 +183,7 @@ class StakingSnapshot:
         )
 
     def calculate_optimal_solution(self, path_to_snapshot, iterations="10"):
-        path_to_snapshot_file = (
-            path_to_snapshot + str(self.era) + "_snapshot.json"
-        )
+        path_to_snapshot_file = path_to_snapshot + str(self.era) + "_snapshot.json"
         result = subprocess.run(
             [
                 "../hackingtime/target/debug/sequential_phragmen_custom",
@@ -211,16 +209,12 @@ class StakingSnapshot:
     def write_to_json(self, name, data_to_save, storage_path):
         file_path = storage_path + str(self.era) + name
         with open(file_path, "w", encoding="utf-8") as jsonfile:
-            jsonfile.write(
-                json.dumps(data_to_save, ensure_ascii=False, indent=4)
-            )
+            jsonfile.write(json.dumps(data_to_save, ensure_ascii=False, indent=4))
             jsonfile.close()
 
     def get_historical_snapshot(self):
         targets = self.get_targets()
-        voter_pointers_dict = self.__transform_to_ordereddict(
-            self.get_voterlist_bags()
-        )
+        voter_pointers_dict = self.__transform_to_ordereddict(self.get_voterlist_bags())
         full_voterlist = []
         bagscounter = 0
         for bag in voter_pointers_dict:
@@ -245,9 +239,7 @@ class StakingSnapshot:
             progress_of_loop(counter, full_voterlist, "Nominators")
             nominator = []
             bond = self.get_specific_nominator_exposure(voter)
-            specific_nominator_targets = self.get_specific_nominator_vote(
-                voter
-            )
+            specific_nominator_targets = self.get_specific_nominator_vote(voter)
             nominator.append(voter)
             nominator.append(bond)
             nominator.append(specific_nominator_targets)

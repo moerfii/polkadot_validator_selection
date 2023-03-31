@@ -15,6 +15,8 @@ import argparse
 from pathlib import Path
 from websocket._exceptions import WebSocketConnectionClosedException
 
+
+
 """
 step1: acquire data
 step1.1: get_snapshot data & stored solutions
@@ -47,12 +49,18 @@ def save_dataframe(dataframe, path):
 
 
 def get_data(
-    snapshot_instance, block_numbers, save_to_json=False, req_dirs=None, config_path=None
+    snapshot_instance,
+    block_numbers,
+    save_to_json=False,
+    req_dirs=None,
+    config_path=None,
 ):
     block_numbers.sort_values("Era", inplace=True)
     block_number_counter = 0
     for index, row in block_numbers.iterrows():
-        block_number_counter = progress_of_loop(block_number_counter, block_numbers, "get_data")
+        block_number_counter = progress_of_loop(
+            block_number_counter, block_numbers, "get_data"
+        )
 
         snapshot_data = None
         nominator_mapping = None
@@ -76,16 +84,16 @@ def get_data(
         block_number_snapshot = row["SignedPhaseBlock"]
         block_number_solution = row["SolutionStoredBlock"] + 1
         try:
-            if not os.path.exists(snapshot_path_file): # todo: reminder: change to not os.path.exists
+            if not os.path.exists(
+                snapshot_path_file
+            ):  # todo: reminder: change to not os.path.exists
                 # acquire snapshot
                 snapshot_instance.set_block_number(block_number_snapshot)
                 snapshot_data = get_snapshot_data(snapshot_instance)
                 (
                     nominator_mapping,
                     validator_mapping,
-                ) = Preprocessor().return_mapping_from_address_to_index(
-                    snapshot_data
-                )
+                ) = Preprocessor().return_mapping_from_address_to_index(snapshot_data)
 
             if save_to_json and snapshot_data is not None:
                 snapshot_instance.write_to_json(
@@ -186,6 +194,34 @@ def preprocess_active_set_data(req_dirs):
     # process calc_solutions
 
 
+
+def datatype_casting(dataframe):
+    """
+    cast data types to reduce memory usage
+    :return:
+    """
+    dataframe["era"] = dataframe["era"].astype("int16")
+    # dataframe["nominator"] = dataframe["nominator"].astype("int32")
+    # dataframe["validator"] = dataframe["validator"].astype("int32")
+    dataframe["total_bond"] = dataframe["total_bond"].astype("int64")
+    dataframe["number_of_validators"] = dataframe[
+        "number_of_validators"
+    ].astype("int8")
+    dataframe["total_proportional_bond"] = dataframe[
+        "total_proportional_bond"
+    ].astype("int64")
+    dataframe["proportional_bond"] = dataframe["proportional_bond"].astype(
+        "int64"
+    )
+    dataframe["prev_min_stake"] = dataframe["prev_min_stake"].astype("int64")
+    dataframe["prev_sum_stake"] = dataframe["prev_sum_stake"].astype("int64")
+    dataframe["prev_variance_stake"] = dataframe["prev_variance_stake"].astype(
+        "int64"
+    )
+    dataframe["solution_bond"] = dataframe["solution_bond"].astype("int64")
+
+    return dataframe
+
 def environment_handler():
     base_dirs = os.listdir("./")
     if "data" not in base_dirs:
@@ -212,12 +248,9 @@ def setup():
         help="Submit the path to the config.json file",
         type=str,
     )
-    parser.add_argument(
-        "-m", "--mode", help="Select live or historic", type=str
-    )
-    parser.add_argument(
-        "-s", "--save", help="Provide path to save file", type=str
-    )
+    parser.add_argument("-m", "--mode", help="Select live or historic", type=str)
+    parser.add_argument("-s", "--save", help="Provide path to save file", type=str)
+    parser.add_argument("-b", "--batch", help="Provide batch size", type=int)
     args = parser.parse_args()
     if args.cpath is None:
         raise UserWarning("Please submit the path to your config.json")
@@ -237,20 +270,11 @@ def preprocess_distribution_data(
         )
 
         try:
-
             prev_winners_file = winners_files[index - 1]
-            prev_winners, jsonfile = read_json(
-                solution_path + prev_winners_file
-            )
-            previous_era_min_stake = np.min(
-                [winner[1] for winner in prev_winners]
-            )
-            previous_era_sum_stake = np.sum(
-                [winner[1] for winner in prev_winners]
-            )
-            previous_era_variance_stake = np.var(
-                [winner[1] for winner in prev_winners]
-            )
+            prev_winners, jsonfile = read_json(solution_path + prev_winners_file)
+            previous_era_min_stake = np.min([winner[1] for winner in prev_winners])
+            previous_era_sum_stake = np.sum([winner[1] for winner in prev_winners])
+            previous_era_variance_stake = np.var([winner[1] for winner in prev_winners])
 
         except IndexError:
             previous_era_min_stake = 0
@@ -316,9 +340,7 @@ def preprocess_distribution_data(
 def get_model_1_data(args, snapshot, req_dirs, path):
     # snapshot.create_substrate_connection(path)
     ## MODEL 1 DATA
-    block_numbers = read_parquet(
-        "./block_numbers/new_block_numbers_dataframe.parquet"
-    )
+    block_numbers = read_parquet("./block_numbers/new_block_numbers_dataframe.parquet")
     # get_data(snapshot, block_numbers, True, req_dirs)
 
     if args.mode == "history":
@@ -365,7 +387,15 @@ def prepare_preprocess_distribution_data(req_dirs):
     return eras, snapshots, assignments, snap_path, solution_path, winners
 
 
-def get_model_2_data(maxbatchsize=150, req_dirs=None):
+def get_model_2_data(maxbatchsize=12, req_dirs=None):
+    """
+
+    :param maxbatchsize:default set to 12 based on the fact that one era contains 22500 rows multiplied by the mean number
+    of validators per nominator (7.25). This is to ensure that the dataframe is not too large to be processed. (approx.
+    2 million rows) (--> using a years worth of data leads to a dataframe with over 130 million rows)
+    :param req_dirs:
+    :return:
+    """
     ## MODEL2 DATA
     # get predicted active set (for now winners json?)
     # go through nominators, (open snapshot + assignments json) drop all non-active set validators
@@ -402,17 +432,19 @@ def get_model_2_data(maxbatchsize=150, req_dirs=None):
             },
             inplace=True,
         )
+        df = datatype_casting(df)
         filename = "data/model_2/df_bond_distribution_{}.csv".format(index)
         df.to_csv(filename)
+        break
     print("done!")
 
 
 def main():
     snapshot, path, req_dirs, args = setup()
-    snapshot.create_substrate_connection(path)
-    get_model_1_data(args, snapshot, req_dirs, path)
-    get_model_2_data(maxbatchsize=150, req_dirs=req_dirs)
+    #snapshot.create_substrate_connection(path)
+    #get_model_1_data(args, snapshot, req_dirs, path)
+    get_model_2_data(maxbatchsize=30, req_dirs=req_dirs)
+
 
 if __name__ == "__main__":
     main()
-

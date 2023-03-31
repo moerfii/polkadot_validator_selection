@@ -25,9 +25,7 @@ for voter in data["voters"]:
             assignment_dict[validator] = voter[1] / len(voter[2])
 
 
-top_boys = np.argpartition(np.array(list(assignment_dict.values())), 297)[
-    -297:
-]
+top_boys = np.argpartition(np.array(list(assignment_dict.values())), 297)[-297:]
 
 assigment_dict_list = []
 for boy in top_boys:
@@ -43,9 +41,7 @@ scorer.is_score1_better_than_score2(score1, score2)
 compare_boys = set()
 for winner in json_winners:
     compare_boys.add(winner[0])
-top_boys = np.argpartition(np.array(list(assignment_dict.values())), 297)[
-    -297:
-]
+top_boys = np.argpartition(np.array(list(assignment_dict.values())), 297)[-297:]
 
 top_boys_stringed = set()
 for top in top_boys:

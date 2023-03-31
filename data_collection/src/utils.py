@@ -21,9 +21,7 @@ def read_parquet(path_to_parquet):
 
 def group_data(path_to_signedphase_json, path_to_solutionstored_json):
     signedphase_block_numbers = sorted(read_json(path_to_signedphase_json))
-    solutionstored_block_numbers = sorted(
-        read_json(path_to_solutionstored_json)
-    )
+    solutionstored_block_numbers = sorted(read_json(path_to_solutionstored_json))
     signedphase_era_dict = {}
     solution_era_dict = {}
     for signedphase_block in signedphase_block_numbers:
@@ -61,9 +59,7 @@ def get_era(self, block_number):
 
 @staticmethod
 def save_file(dataframe):
-    dataframe.to_parquet(
-        "../block_numbers/new_block_numbers_dataframe.parquet"
-    )
+    dataframe.to_parquet("../block_numbers/new_block_numbers_dataframe.parquet")
 
 
 def progress_of_loop(counter, total, name):
@@ -81,8 +77,11 @@ def partition_into_batches(array, maxbatchsize):
     ]
 
 
+
+
+
 if __name__ == "__main__":
-    #snapshot = StakingSnapshot()
+    # snapshot = StakingSnapshot()
     df = group_data(
         "../block_numbers/signedphase_blocknumbers.json",
         "../block_numbers/solutionstored_blocknumbers.json",

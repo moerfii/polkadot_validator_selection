@@ -1,4 +1,3 @@
-
 """
 
 1 subscribe to storage_query "snapshot"
@@ -8,12 +7,14 @@
 3 train model, save model
 """
 
+
 def subscribe():
     pass
 
-def predict():
 
+def predict():
     pass
+
 
 def train():
     pass

@@ -7,13 +7,10 @@ from pyspark.sql import SparkSession
 from dotenv import load_dotenv, find_dotenv
 
 queries_postgres = {
-    "get_stakingdata":
-    """
+    "get_stakingdata": """
     
     """,
-
-    "get_all_validatorpool":
-    """
+    "get_all_validatorpool": """
     select
         v.era, 
         v.block_number,
@@ -24,7 +21,7 @@ queries_postgres = {
         aggregator a
         on v.block_number = a.block_number
     """,
-    "get_staking_network":"""
+    "get_staking_network": """
     select
         n.account as nominator_id,
         v.account as validator_id,
@@ -35,29 +32,27 @@ queries_postgres = {
     on n.validator = v.id
         
     """,
-
-    "get_address_accountid":"""
+    "get_address_accountid": """
     select 
         id,
         address
     from
         account
     """,
-    "get_blocknumber_era":"""
+    "get_blocknumber_era": """
         select 
             era,
             block_number
         from
             validator_pool
     """,
-    "get_blocknumber_timestamp":"""
+    "get_blocknumber_timestamp": """
         select 
             block_number,
             timestamp
         from
             block
     """,
-
     "get_transfer_network_matija": """
             SELECT 
             from_account, 
@@ -108,7 +103,6 @@ queries_postgres = {
         ORDER by era, validator, nominator
     """,
     "get_validator_pools": "select * from validator_pool",
-
     "get_validator_pool_at_era": "select * from validator_pool where era=REPL0",
     "get_balances_at_block": """
         SELECT DISTINCT ON (address)
@@ -223,7 +217,7 @@ queries_postgres = {
             INNER JOIN account a2 
                 ON a2.id = c.controlled_account
     """,
-     "get_controllers_by_address": """
+    "get_controllers_by_address": """
         SELECT
             a1.address as controller_address,
             a2.address as controlled_address
@@ -241,13 +235,13 @@ queries_postgres = {
             INNER JOIN account a
                 ON e.account = a.id
         WHERE a.address = 'REPL0'
-    """
+    """,
 }
 
 queries_neo4j = {
     "get_blocks_and_validators": "match(block:Block)-[:HAS_AUTHOR]-(validator:Validator)-[:IS_VALIDATOR]-(account:Account) return block.block_number, account.address",
     "get_full_validator_network": "MATCH(validatorpool:ValidatorPool)-[:HAS_VALIDATOR]->(validator:Validator)-[:HAS_NOMINATOR]->(nominator:Nominator), (validator_account:Account)-[:IS_VALIDATOR]->(validator), (nominator_account:Account)-[:IS_NOMINATOR]->(nominator) RETURN validatorpool.era, validator_account.address, nominator_account.address",
-    "get_transfernetwork": "match(from_account:Account)-[transfer_to:TRANSFER_TO]->(to_account:Account) return from_account.address,to_account.address"
+    "get_transfernetwork": "match(from_account:Account)-[transfer_to:TRANSFER_TO]->(to_account:Account) return from_account.address,to_account.address",
 }
 
 
@@ -267,57 +261,54 @@ def env(key, default=None, required=True):
         raise RuntimeError("Missing required environment variable '%s'" % key)
 
 
-
 """
 Set config
 """
 load_dotenv(find_dotenv())
-DATABASE_USERNAME = env('DATABASE_USERNAME')
-DATABASE_PASSWORD = env('DATABASE_PASSWORD')
-DATABASE_URL = env('DATABASE_URL', default='localhost')
+DATABASE_USERNAME = env("DATABASE_USERNAME")
+DATABASE_PASSWORD = env("DATABASE_PASSWORD")
+DATABASE_URL = env("DATABASE_URL", default="localhost")
+
 
 def init_sparksession(query: str, db: str):
     print(query)
     print(db)
 
     if db == "p":
-        return \
-            SparkSession \
-            .builder \
-            .config("spark.driver.memory", "15g") \
-            .appName("Polkadot Pyspark Postgres") \
-            .config("spark.jars", "./postgresql-42.2.6.jar") \
-            .getOrCreate() \
-            .read \
-            .format("jdbc") \
-            .option("url", DATABASE_URL) \
-            .option("user", DATABASE_USERNAME) \
-            .option("password", DATABASE_PASSWORD) \
-            .option("driver", "org.postgresql.Driver") \
-            .option("query", query) \
+        return (
+            SparkSession.builder.config("spark.driver.memory", "15g")
+            .appName("Polkadot Pyspark Postgres")
+            .config("spark.jars", "./postgresql-42.2.6.jar")
+            .getOrCreate()
+            .read.format("jdbc")
+            .option("url", DATABASE_URL)
+            .option("user", DATABASE_USERNAME)
+            .option("password", DATABASE_PASSWORD)
+            .option("driver", "org.postgresql.Driver")
+            .option("query", query)
             .load()
+        )
     else:
-        print('graph_job')
-        return \
-            SparkSession \
-            .builder \
-            .config("spark.driver.memory", "15g") \
-            .appName("Polkadot Pyspark neo4j") \
-            .config("spark.jars", "./neo4j-connector-apache-spark_2.12-4.1.2_for_spark_3.jar") \
-            .config("neo4j.url", DATABASE_URL) \
-            .config("neo4j.authentication.type", "basic") \
-            .config("neo4j.authentication.basic.username", DATABASE_USERNAME) \
-            .config("neo4j.authentication.basic.password", DATABASE_PASSWORD) \
-            .getOrCreate()\
-            .read \
-            .format("org.neo4j.spark.DataSource") \
-            .option("url", DATABASE_URL) \
-            .option("user", DATABASE_USERNAME) \
-            .option("password", DATABASE_PASSWORD) \
-            .option("query", query)\
+        print("graph_job")
+        return (
+            SparkSession.builder.config("spark.driver.memory", "15g")
+            .appName("Polkadot Pyspark neo4j")
+            .config(
+                "spark.jars",
+                "./neo4j-connector-apache-spark_2.12-4.1.2_for_spark_3.jar",
+            )
+            .config("neo4j.url", DATABASE_URL)
+            .config("neo4j.authentication.type", "basic")
+            .config("neo4j.authentication.basic.username", DATABASE_USERNAME)
+            .config("neo4j.authentication.basic.password", DATABASE_PASSWORD)
+            .getOrCreate()
+            .read.format("org.neo4j.spark.DataSource")
+            .option("url", DATABASE_URL)
+            .option("user", DATABASE_USERNAME)
+            .option("password", DATABASE_PASSWORD)
+            .option("query", query)
             .load()
-
-
+        )
 
 
 def main(args):
@@ -336,8 +327,7 @@ def main(args):
             query = query.replace(f"REPL{i}", val)
 
     spark = init_sparksession(query, db=args.database)
-    spark.show(
-    )
+    spark.show()
     if args.save:
         spark.write.csv(path=f"./results/{args.save}.csv")
     end = time.perf_counter()
@@ -346,32 +336,30 @@ def main(args):
 
 def argparser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-q",   "--query",                              help="enter SQL/cypher query",           type=str)
-    parser.add_argument("-p", "--preset",                           help="choose predefined query",   type=str)
-    parser.add_argument("-s",   "--save",          help="Save to /results. Add a filename as an argument", type=str)
-    parser.add_argument("-d",  "--database",                           help="p=postgres or n=neo4j")
-    parser.add_argument("-a", "--args", nargs='+', help="custom arguments such as blocknumber")
+    parser.add_argument("-q", "--query", help="enter SQL/cypher query", type=str)
+    parser.add_argument("-p", "--preset", help="choose predefined query", type=str)
+    parser.add_argument(
+        "-s", "--save", help="Save to /results. Add a filename as an argument", type=str
+    )
+    parser.add_argument("-d", "--database", help="p=postgres or n=neo4j")
+    parser.add_argument(
+        "-a", "--args", nargs="+", help="custom arguments such as blocknumber"
+    )
     return parser.parse_args()
-
-
-
 
 
 if __name__ == "__main__":
     arguments = argparser()
 
     if arguments.query is None and arguments.preset is None:
-        raise UserWarning("A predefined or userdefined query via flags {-q, -pre} is required")
+        raise UserWarning(
+            "A predefined or userdefined query via flags {-q, -pre} is required"
+        )
         exit()
     if arguments.query is not None and arguments.preset is not None:
-        raise UserWarning("Cannot process predefined AND userdefined query. Select one and remove other")
+        raise UserWarning(
+            "Cannot process predefined AND userdefined query. Select one and remove other"
+        )
         exit()
 
     main(arguments)
-
-
-
-
-
-
-

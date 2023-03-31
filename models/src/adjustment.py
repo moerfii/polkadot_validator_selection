@@ -10,6 +10,46 @@ implement various adjustment strategies
 
 
 class AdjustmentTool:
+
+    def apply_even_split_strategy(self,nominator, dataframe):
+        nominator_df = dataframe.loc[dataframe["nominator"] == nominator]
+        while (nominator_df["prediction"].values < 0).any():
+            nominator_df = self.adjust_negative_stakes_substrategy(
+                nominator_df
+            )
+        total_bond = nominator_df["total_bond"].iloc[0]
+        difference_to_total_bond = np.subtract(
+            total_bond, nominator_df["prediction"].sum()
+        )
+        mod_difference_to_total_bond = np.mod(
+            difference_to_total_bond, len(nominator_df)
+        )
+        if not mod_difference_to_total_bond:
+            prediction_sum_difference = int(
+                np.divide(difference_to_total_bond, int(len(nominator_df)))
+            )
+        else:
+            prediction_sum_difference = int(
+                np.divide(
+                    difference_to_total_bond
+                    - mod_difference_to_total_bond,
+                    len(nominator_df),
+                )
+            )
+            nominator_df["prediction"].iloc[0] = int(
+                nominator_df["prediction"].iloc[0]
+                + mod_difference_to_total_bond
+            )
+
+        nominator_df.loc[:, "prediction"] = nominator_df["prediction"].add(
+            prediction_sum_difference
+        )
+        sanity_check = np.subtract(
+            total_bond, nominator_df["prediction"].sum()
+        )
+        if sanity_check != 0:
+            raise ValueError("Sanity check failed")
+        dataframe.loc[dataframe["nominator"] == nominator] = nominator_df
     def even_split_strategy(self, dataframe):
         """
         This function groups by nominator, sums up the prediction values, compares with the total bond (which is the 100% benchmark) and adjusts the prediction values accordingly
@@ -24,49 +64,8 @@ class AdjustmentTool:
         dataframe["prediction"] = dataframe["prediction"].astype(int)
         dataframe.reset_index(drop=True, inplace=True)
         nominators = dataframe["nominator"].unique()
-        counter = 0
         for nominator in nominators:
-            counter += 1
-            print(counter)
-            nominator_df = dataframe.loc[dataframe["nominator"] == nominator]
-            while (nominator_df["prediction"].values < 0).any():
-                nominator_df = self.adjust_negative_stakes_substrategy(
-                    nominator_df
-                )
-            total_bond = nominator_df["total_bond"].iloc[0]
-            difference_to_total_bond = np.subtract(
-                total_bond, nominator_df["prediction"].sum()
-            )
-            mod_difference_to_total_bond = np.mod(
-                difference_to_total_bond, len(nominator_df)
-            )
-            if not mod_difference_to_total_bond:
-                prediction_sum_difference = int(
-                    np.divide(
-                        difference_to_total_bond, int(len(nominator_df))
-                    )
-                )
-            else:
-                prediction_sum_difference = int(
-                    np.divide(
-                        difference_to_total_bond
-                        - mod_difference_to_total_bond,
-                        len(nominator_df),
-                    )
-                )
-                nominator_df["prediction"].iloc[0] = int(
-                    nominator_df["prediction"].iloc[0]
-                    + mod_difference_to_total_bond
-                )
-
-            nominator_df.loc[:, "prediction"] = nominator_df["prediction"].add(
-                prediction_sum_difference
-            )
-            sanity_check = np.subtract(
-                total_bond, nominator_df["prediction"].sum()
-            )
-            dataframe.loc[dataframe["nominator"] == nominator] = nominator_df
-            print(sanity_check)
+            self.apply_even_split_strategy(nominator, dataframe)
         return dataframe
 
     def weighted_split_strategy(self):

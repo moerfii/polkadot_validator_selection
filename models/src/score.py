@@ -4,7 +4,6 @@ import json
 import os
 
 
-
 class ScoringUtility:
     def __init__(self):
         self.calculated_score = None
@@ -94,7 +93,6 @@ if __name__ == "__main__":
         print(index)
         print(scorer.is_score1_better_than_score2(value, scores2[index]))
     print()
-
 
 
 class ScoringTool:

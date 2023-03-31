@@ -29,9 +29,7 @@ class Preprocessor:
                 self.process_solution_data(data)
 
     @staticmethod
-    def process_snapshot_data(
-        snapshot, era, previous_processed_dicts, solution
-    ):
+    def process_snapshot_data(snapshot, era, previous_processed_dicts, solution):
         # todo: potentially add commission // era points // elected ratio instead of counter
         """
         place all in Dataframe with columns (ValidatorAddress, TotalBond, ProportionalBond, *[Nominators], NominatorCount,
@@ -47,9 +45,7 @@ class Preprocessor:
                     current_values = processed_dict[validator]
 
                     total_bond = current_values[0] + row[1]
-                    proportional_bond = current_values[1] + row[1] / len(
-                        row[2]
-                    )
+                    proportional_bond = current_values[1] + row[1] / len(row[2])
                     list_of_nominators = current_values[2]
                     list_of_nominators.add(row[0])
                     nominator_count = current_values[3] + 1
@@ -57,7 +53,9 @@ class Preprocessor:
 
                     elected_previous_era = current_values[4]
                     elected_counter = current_values[5]
-                    self_stake = 0  # potentially add later/should not give extra information
+                    self_stake = (
+                        0  # potentially add later/should not give extra information
+                    )
                     avg_stake_per_nominator = proportional_bond / len(
                         list_of_nominators
                     )  # todo: adapt metric.
@@ -84,13 +82,9 @@ class Preprocessor:
                     elected_previous_era = 0  # check previous
                     elected_counter = 0  # check previous
                     if len(previous_processed_dicts):
-                        for previous_dict in reversed(
-                            previous_processed_dicts
-                        ):
+                        for previous_dict in reversed(previous_processed_dicts):
                             try:
-                                elected_previous_era = previous_dict[
-                                    validator
-                                ][
+                                elected_previous_era = previous_dict[validator][
                                     4
                                 ]  # es isch ofc da immer 0 will de scheiss ersch nacher processed wird
                                 elected_counter = previous_dict[validator][6]
@@ -134,12 +128,8 @@ class Preprocessor:
             processed_snapshot_dict[row[0]][4] = 1
             for processed_dict in reversed(previous_processed_dicts):
                 try:
-                    processed_snapshot_dict[row[0]][6] = (
-                        processed_dict[row[0]][6] + 1
-                    )
-                    processed_snapshot_dict[row[0]][5] = processed_dict[
-                        row[0]
-                    ][4]
+                    processed_snapshot_dict[row[0]][6] = processed_dict[row[0]][6] + 1
+                    processed_snapshot_dict[row[0]][5] = processed_dict[row[0]][4]
                     break
                 except KeyError:
                     continue
@@ -160,9 +150,7 @@ class Preprocessor:
             validator_indices = []
             for validator_address in snapshot["voters"][index][2]:
                 try:
-                    validator_indices.append(
-                        validator_mapping_dict[validator_address]
-                    )
+                    validator_indices.append(validator_mapping_dict[validator_address])
                 except KeyError:
                     fail_counter += 1
                     # print(f"validator_address: {validator_address} is not in available targets")
@@ -183,9 +171,7 @@ class Preprocessor:
             validator_indices = []
             for validator_address in snapshot["voters"][index][2]:
                 try:
-                    validator_indices.append(
-                        validator_mapping_dict[validator_address]
-                    )
+                    validator_indices.append(validator_mapping_dict[validator_address])
                 except KeyError:
                     fail_counter += 1
                     print(
