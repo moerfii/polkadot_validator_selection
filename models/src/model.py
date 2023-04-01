@@ -208,9 +208,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     dataframe = pd.read_csv("../../data_collection/data/model_2/df_bond_distribution_0.csv")
 
+
     model = Model(dataframe, "solution_bond", model_type=args.model_type)
-    study = optuna.create_study(study_name="hyperparameter_tuning_polkadot" ,direction="minimize")
-    study.optimize(model.objective, n_trials=100)
+    study = optuna.create_study(study_name="hyperparameter_tuning_polkadot_full" ,direction="minimize",
+                                storage="sqlite:///db.sqlite3",)
+    study.optimize(model.objective, n_trials=10)
+    print(f"Best value: {study.best_value} (params: {study.best_params})")
 
 
 
