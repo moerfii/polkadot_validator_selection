@@ -2,9 +2,11 @@ import argparse
 import pickle
 import optuna
 from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import train_test_split
 from sklearn import linear_model
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 import pandas as pd
 
@@ -64,9 +66,10 @@ class Model:
         elif model_type == "lasso":
             model = linear_model.Lasso(alpha=trial.suggest_float("alpha", 0.01, 1.0))
 
-        model.fit(self.X_train, self.y_train)
-        y_pred = model.predict(self.X_test)
-        return mean_squared_error(self.y_test, y_pred)
+
+        return cross_val_score(model, self.X_train, self.y_train, cv=KFold(n_splits=10,
+                                      shuffle=True,
+                                      random_state=42), scoring="neg_root_mean_squared_error").mean()
 
     def preprocess_data(self):
         """
@@ -206,7 +209,7 @@ if __name__ == "__main__":
     dataframe = pd.read_csv("../../data_collection/data/model_2/df_bond_distribution_0.csv")
 
     model = Model(dataframe, "solution_bond", model_type=args.model_type)
-    study = optuna.create_study(direction="minimize")
+    study = optuna.create_study(study_name="hyperparameter_tuning_polkadot" ,direction="minimize")
     study.optimize(model.objective, n_trials=100)
 
 
