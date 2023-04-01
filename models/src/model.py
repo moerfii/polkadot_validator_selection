@@ -27,7 +27,7 @@ class Model:
 
     def objective(self, trial):
         model = None
-        model_type = trial.suggest_categorical("regressor", ["ridge", "lasso", "randomforest", "gradientboosting", "lightgbm"])
+        model_type = trial.suggest_categorical("regressor", ["ridge", "lasso", "randomforest", "gradientboosting"])
         """     if model_type == "xgboost":
             model = XGBRegressor(
                 n_estimators=trial.suggest_int("n_estimators", 100, 1000),
