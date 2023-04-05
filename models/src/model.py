@@ -29,7 +29,7 @@ class Model:
         #self.save_trained_model()
 
     def objective(self, trial):
-        model_type = trial.suggest_categorical("regressor", ["ridge"])
+        model_type = trial.suggest_categorical("regressor", ["ridge", "lasso"])
         if model_type == "randomforest":
             self.model = RandomForestRegressor(
                 n_estimators=trial.suggest_int("n_estimators", 100, 1000),
@@ -85,7 +85,7 @@ class Model:
     def special_preprocessing_with_adjustment(self):
 
         max_era = self.dataframe["era"].max()
-        range_test_eras = range(max_era - 2, max_era) # todo: change back to 4
+        range_test_eras = range(max_era - 4, max_era) # todo: change back to 4
         scores = []
         for test_era in range_test_eras:
             print(test_era)
@@ -276,8 +276,8 @@ if __name__ == "__main__":
 
     model = Model(dataframe, "solution_bond")
     study = optuna.create_study(direction="maximize",
-                                storage="sqlite:///db.sqlite3", study_name="ridge")
-    study.optimize(model.objective_score_boosting, n_trials=10)
+                                storage="sqlite:///db.sqlite3", study_name="ridge_lasso")
+    study.optimize(model.objective_score_boosting, n_trials=50)
     print(f"Best value: {study.best_value} (params: {study.best_params})")
 
 
