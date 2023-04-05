@@ -47,11 +47,15 @@ def split_data(dataframe, test_era=None):
         test_era = dataframe["era"].iloc[-1]
     # potentially add total proportional bond i.e grouping by validator
     x = dataframe.loc[:, features]
-    column_transformer.fit(x)
+
     y = dataframe.loc[:, ["solution_bond", "era"]]
     # X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
     X_train = x.loc[dataframe["era"] != test_era]
+    column_transformer.fit(X_train)
     X_train = pd.DataFrame(column_transformer.transform(X_train))
+
+
+
     X_test = x.loc[dataframe["era"] == test_era]
     total_bond = X_test["total_bond"]
     X_test = pd.DataFrame(column_transformer.transform(X_test))
@@ -62,8 +66,6 @@ def split_data(dataframe, test_era=None):
     X_train.columns = features
     X_train.drop(["era"], axis=1, inplace=True)
     X_test.drop(["era"], axis=1, inplace=True)
-
-    dataframe = None
 
     return X_train, X_test, y_train, y_test, total_bond
 
@@ -121,7 +123,7 @@ def prepare(test_era=None):
     :return:
     """
     # read training data
-    dataframe = pd.read_csv("../data_collection/data/model_2/df_bond_distribution_0.csv")
+    dataframe = pd.read_csv("../data_collection/data/model_2/df_bond_distribution_testing_0.csv")
     dataframe.drop(["Unnamed: 0"], axis=1, inplace=True)
     # split data into train and test (provide era to test on) # todo: in the future the test era should be the last era
     X_train, X_test, y_train, y_test, total_bond = split_data(
@@ -144,8 +146,8 @@ def adjust(predicted_dataframe):
     adjust predictions to 100%
     :return:
     """
-    adj = AdjustmentTool()
-    return adj.even_split_strategy(predicted_dataframe)
+    adj = AdjustmentTool(predicted_dataframe)
+    return adj.even_split_strategy()
 
 
 def score(adjusted_predicted_dataframe):
@@ -215,6 +217,7 @@ def main(args):
         # prepare data
         X_train, X_test, y_train, y_test, predicted_dataframe = prepare(args.era)
 
+
         print("data prepared")
 
         # select model
@@ -238,13 +241,13 @@ def main(args):
     score_of_prediction = score(adjusted_predicted_dataframe)
 
     result, score_of_prediction, score_of_calculated = compare(
-        score_of_prediction, era
+        score_of_prediction, args.era
     )
 
     if args.plot:
         plot_comparison(score_of_prediction, score_of_calculated)
 
-    return compare(score_of_prediction, era)
+    return compare(score_of_prediction, args.era)
 
 
 if __name__ == "__main__":

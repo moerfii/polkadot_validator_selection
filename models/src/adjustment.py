@@ -1,5 +1,7 @@
 import numpy as np
+import multiprocessing
 
+import pandas as pd
 
 """
 ONLY WORKS WITH COMPLETE SINGULAR ERAS
@@ -11,13 +13,21 @@ implement various adjustment strategies
 
 class AdjustmentTool:
 
+    def __init__(self, dataframe=None):
+        self.adjusted_dataframe = None
+        self.dataframe = dataframe
+
+
     def apply_even_split_strategy(self,nominator, dataframe):
-        nominator_df = dataframe.loc[dataframe["nominator"] == nominator]
+        nominator_df = dataframe.loc[dataframe["nominator"] == nominator].reset_index(drop=True)
         while (nominator_df["prediction"].values < 0).any():
-            nominator_df = self.adjust_negative_stakes_substrategy(
-                nominator_df
-            )
-        total_bond = nominator_df["total_bond"].iloc[0]
+            if len(nominator_df) == 1:
+                nominator_df.loc[0, "prediction"] = 0
+            else:
+                nominator_df = self.adjust_negative_stakes_substrategy_apply_abs(
+                    nominator_df
+                )
+        total_bond = nominator_df.loc[0, "total_bond"]
         difference_to_total_bond = np.subtract(
             total_bond, nominator_df["prediction"].sum()
         )
@@ -36,21 +46,38 @@ class AdjustmentTool:
                     len(nominator_df),
                 )
             )
-            nominator_df["prediction"].iloc[0] = int(
-                nominator_df["prediction"].iloc[0]
-                + mod_difference_to_total_bond
-            )
+            nominator_df.loc[0, "prediction"] = nominator_df.loc[0, "prediction"].astype("int64") \
+                                                        + mod_difference_to_total_bond
 
-        nominator_df.loc[:, "prediction"] = nominator_df["prediction"].add(
-            prediction_sum_difference
-        )
+        if prediction_sum_difference > 0 or len(nominator_df)==1:
+            nominator_df.loc[:, ["prediction"]] = nominator_df.loc[:, "prediction"].add(
+                prediction_sum_difference
+            )
+        else:
+            nominator_df.loc[:, ["prediction"]] = nominator_df.loc[:, "prediction"].add(
+                prediction_sum_difference
+            )
+            while (nominator_df["prediction"].values < 0).any():
+                nominator_df = self.adjust_negative_stakes_substrategy_reduce_maxindex(
+                    nominator_df
+                )
+
+
         sanity_check = np.subtract(
             total_bond, nominator_df["prediction"].sum()
         )
         if sanity_check != 0:
-            raise ValueError("Sanity check failed")
-        dataframe.loc[dataframe["nominator"] == nominator] = nominator_df
-    def even_split_strategy(self, dataframe):
+            print(nominator_df)
+            print(sanity_check)
+            raise ValueError("sanity check failed")
+
+        if (nominator_df["prediction"].values < 0).any():
+            print(prediction_sum_difference)
+            print(nominator_df)
+            raise ValueError("negative stakes")
+
+        return nominator_df
+    def even_split_strategy(self, dataframe=None):
         """
         This function groups by nominator, sums up the prediction values, compares with the total bond (which is the 100% benchmark) and adjusts the prediction values accordingly
         There are two cases:
@@ -61,12 +88,22 @@ class AdjustmentTool:
         :param dataframe: dataframe with columns: nominator, validator, proportional_bond, total_bond, number_of_validators, total_proportional_bond, era, solution_bond, prediction
         :return: adjusted prediction values in prediction column
         """
+        if dataframe is None:
+            dataframe = self.dataframe
+
         dataframe["prediction"] = dataframe["prediction"].astype(int)
         dataframe.reset_index(drop=True, inplace=True)
         nominators = dataframe["nominator"].unique()
+        counter = 0
+
+        """ This is for testing purposes
         for nominator in nominators:
             self.apply_even_split_strategy(nominator, dataframe)
-        return dataframe
+        """
+        with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
+            results = pool.starmap(self.apply_even_split_strategy, [(nominator, dataframe) for nominator in nominators])
+        adjusted_dataframe = pd.concat(results)
+        return adjusted_dataframe
 
     def weighted_split_strategy(self):
         return
@@ -78,7 +115,7 @@ class AdjustmentTool:
         return
 
     @staticmethod
-    def adjust_negative_stakes_substrategy(dataframe):
+    def adjust_negative_stakes_substrategy_reduce_maxindex(dataframe):
         """
         This function adjusts negative stakes to 0 by finding the indices of the negative stakes and setting them to 0
         and subtracting the absolute value of the negative stake from the maximum prediction value row.
@@ -91,12 +128,25 @@ class AdjustmentTool:
             .abs()
             .sum()
         )
+        dataframe.loc[dataframe["prediction"] < 0, "prediction"] = 0
         dataframe.loc[max_index, "prediction"] = (
             dataframe.loc[max_index, "prediction"] - value_to_subtract
         )
-        dataframe.loc[dataframe["prediction"] < 0, "prediction"] = 0
+        return dataframe
+
+    def adjust_negative_stakes_substrategy_apply_abs(self, dataframe):
+        """
+        This function adjusts negative stakes to absolute values
+        :param dataframe:
+        :return:
+        """
+        dataframe["prediction"] = dataframe["prediction"].abs()
         return dataframe
 
 
 if __name__ == "__main__":
-    print()
+    print("Number of cpu : ", multiprocessing.cpu_count())
+
+    df = pd.read_csv("../../data_collection/data/model_2/df_bond_distribution_testing_0.csv")
+    adjustment_tool = AdjustmentTool(df)
+    adjustment_tool.even_split_strategy()

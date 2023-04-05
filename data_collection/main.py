@@ -201,8 +201,6 @@ def datatype_casting(dataframe):
     :return:
     """
     dataframe["era"] = dataframe["era"].astype("int16")
-    # dataframe["nominator"] = dataframe["nominator"].astype("int32")
-    # dataframe["validator"] = dataframe["validator"].astype("int32")
     dataframe["total_bond"] = dataframe["total_bond"].astype("int64")
     dataframe["number_of_validators"] = dataframe[
         "number_of_validators"
@@ -433,7 +431,7 @@ def get_model_2_data(maxbatchsize=12, req_dirs=None):
             inplace=True,
         )
         df = datatype_casting(df)
-        filename = "data/model_2/df_bond_distribution_{}.csv".format(index)
+        filename = "data/model_2/df_bond_distribution_testing_{}.csv".format(index)
         df.to_csv(filename)
         break
     print("done!")
@@ -443,7 +441,7 @@ def main():
     snapshot, path, req_dirs, args = setup()
     #snapshot.create_substrate_connection(path)
     #get_model_1_data(args, snapshot, req_dirs, path)
-    get_model_2_data(maxbatchsize=30, req_dirs=req_dirs)
+    get_model_2_data(maxbatchsize=3, req_dirs=req_dirs)
 
 
 if __name__ == "__main__":
