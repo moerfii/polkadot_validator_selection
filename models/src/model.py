@@ -29,7 +29,7 @@ class Model:
         #self.save_trained_model()
 
     def objective(self, trial):
-        model_type = trial.suggest_categorical("regressor", ["ridge", "lasso"])
+        model_type = trial.suggest_categorical("regressor", ["ridge", "lasso", "randomforest", "gradientboosting"])
         if model_type == "randomforest":
             self.model = RandomForestRegressor(
                 n_estimators=trial.suggest_int("n_estimators", 100, 1000),
@@ -276,8 +276,8 @@ if __name__ == "__main__":
 
     model = Model(dataframe, "solution_bond")
     study = optuna.create_study(direction="maximize",
-                                storage="sqlite:///db.sqlite3", study_name="ridge_lasso")
-    study.optimize(model.objective_score_boosting, n_trials=50)
+                                storage="sqlite:///db.sqlite3")
+    study.optimize(model.objective_score_boosting, n_trials=100)
     print(f"Best value: {study.best_value} (params: {study.best_params})")
 
 
