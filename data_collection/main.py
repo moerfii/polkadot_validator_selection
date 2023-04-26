@@ -15,6 +15,7 @@ import argparse
 from pathlib import Path
 from websocket._exceptions import WebSocketConnectionClosedException
 
+from sklearn.preprocessing import OneHotEncoder
 
 
 """
@@ -202,9 +203,6 @@ def datatype_casting(dataframe):
     """
     dataframe["era"] = dataframe["era"].astype("int16")
     dataframe["total_bond"] = dataframe["total_bond"].astype("int64")
-    dataframe["number_of_validators"] = dataframe[
-        "number_of_validators"
-    ].astype("int8")
     dataframe["total_proportional_bond"] = dataframe[
         "total_proportional_bond"
     ].astype("int64")
@@ -256,6 +254,7 @@ def setup():
     return StakingSnapshot(), path, required_directories, args
 
 
+
 def preprocess_distribution_data(
     eras, snapshots, assignment_files, snap_path, solution_path, winners_files
 ):
@@ -267,21 +266,15 @@ def preprocess_distribution_data(
             progress_counter, eras, "Preprocessing Assignments"
         )
 
-        try:
-            prev_winners_file = winners_files[index - 1]
-            prev_winners, jsonfile = read_json(solution_path + prev_winners_file)
-            previous_era_min_stake = np.min([winner[1] for winner in prev_winners])
-            previous_era_sum_stake = np.sum([winner[1] for winner in prev_winners])
-            previous_era_variance_stake = np.var([winner[1] for winner in prev_winners])
+        # calculate previous era stats, variance, min, sum
+        # since we exclude the first era, we do not need to handle the case where index = 0
+        prev_winners_file = winners_files[index - 1]
+        prev_winners, jsonfile = read_json(solution_path + prev_winners_file)
+        previous_era_min_stake = np.min([winner[1] for winner in prev_winners])
+        previous_era_sum_stake = np.sum([winner[1] for winner in prev_winners])
+        previous_era_variance_stake = np.var([winner[1] for winner in prev_winners])
 
-        except IndexError:
-            previous_era_min_stake = 0
-            previous_era_sum_stake = 0
-            previous_era_variance_stake = 0
-
-        final_dictionary = []
-        sub_final_dictionary = {}
-
+        # prepare snapshot and assignment data
         snap_dictionary = {}
         snap_file = snapshots[index]
         snap, jsonfile = read_json(snap_path + snap_file)
@@ -296,6 +289,11 @@ def preprocess_distribution_data(
         for assignment in assignments:
             assignments_dict[assignment[0]] = assignment[1]
 
+
+
+
+        final_dictionary = []
+        sub_final_dictionary = {}
         for nominator, assignment in assignments_dict.items():
             bond = snap_dictionary[nominator][0]
             for validator in assignment:
@@ -317,6 +315,7 @@ def preprocess_distribution_data(
                         previous_era_variance_stake,
                     ]
                 )
+
                 try:
                     sub_final_dictionary[validator[0]] += proportional_bond
                 except KeyError:
@@ -330,9 +329,71 @@ def preprocess_distribution_data(
 
     # we drop the first dataframe due to the min, sum and var being 0.
     dataframes = []
-    for sub_df in final_dictionaries[1:]:
+    for sub_df in final_dictionaries:
         dataframes.append(pd.DataFrame.from_records(sub_df))
-    return pd.concat(dataframes)
+    concatenated_dataframe = pd.concat(dataframes)
+
+    concatenated_dataframe.rename(
+        columns={
+            0: "nominator",
+            1: "validator",
+            2: "era",
+            3: "proportional_bond",
+            4: "number_of_validators",
+            5: "total_bond",
+            6: "solution_bond",
+            7: "prev_min_stake",
+            8: "prev_sum_stake",
+            9: "prev_variance_stake",
+            10: "total_proportional_bond",
+        },
+        inplace=True,
+    )
+
+    ## one-hot encoding
+    enc = OneHotEncoder(drop='first', handle_unknown='ignore')
+    enc_df = pd.DataFrame(enc.fit_transform(concatenated_dataframe[['number_of_validators']]).toarray())
+    concatenated_dataframe = concatenated_dataframe.join(enc_df)
+    concatenated_dataframe = concatenated_dataframe.drop(columns=['number_of_validators'])
+
+    return finish_preprocessing(concatenated_dataframe, eras)
+
+
+def impute_data(df):
+
+    onehot_columns = ['0_x', '1_x', '2_x', '3_x', '4_x', '5_x', '6_x', '7_x', '8_x', '9_x', '10_x', '11_x', '12_x', '13_x', '14_x']
+
+    impute_columns = ['proportional_bond_y', 'total_bond_y', 'total_proportional_bond_y']
+
+    for impute_column in impute_columns:
+        for column in onehot_columns:
+            median = df.loc[df[column] == 1][impute_column].median()
+            df.loc[df[column] == 1, impute_column] = df.loc[df[column] == 1, impute_column].replace(np.nan, median)
+
+        median = df.loc[(df[onehot_columns] == 0).all(axis=1), impute_column].median()
+        df.loc[(df[onehot_columns] == 0).all(axis=1), impute_column] = df.loc[(df[onehot_columns] == 0).all(axis=1), impute_column].replace(np.nan, median)
+
+    return df
+
+
+def finish_preprocessing(df, eras):
+    # in a next step we subtract the proportional_bond from the previous era from the current era
+    # this is done to get the change in the data
+    # apply to new dataframe
+    subtracted_dataframe = df.copy()
+    for era in eras:
+        if era == eras[0]:
+            continue
+        else:
+            merged_dataframe = df.loc[df['era'] == era].merge(df.loc[subtracted_dataframe['era'] == era - 1], on=['nominator', 'validator'], how='left')
+            merged_dataframe = impute_data(merged_dataframe)
+            subtracted_dataframe.loc[subtracted_dataframe['era'] == era, 'proportional_bond'] = merged_dataframe['proportional_bond_x'] - merged_dataframe['proportional_bond_y']
+            subtracted_dataframe.loc[subtracted_dataframe['era'] == era, 'total_bond'] = merged_dataframe['total_bond_x'] - merged_dataframe['total_bond_y']
+            subtracted_dataframe.loc[subtracted_dataframe['era'] == era, 'total_proportional_bond'] = merged_dataframe['total_proportional_bond_x'] - merged_dataframe['total_proportional_bond_y']
+
+    # drop all rows where era = eras[0]
+    return subtracted_dataframe.loc[subtracted_dataframe['era'] != eras[0]]
+
 
 
 def get_model_1_data(args, snapshot, req_dirs, path):
@@ -414,22 +475,7 @@ def get_model_2_data(maxbatchsize=12, req_dirs=None):
         df = preprocess_distribution_data(
             sub_eras, snapshots, assignments, snap_path, solution_path, winners
         )
-        df.rename(
-            columns={
-                0: "nominator",
-                1: "validator",
-                2: "era",
-                3: "proportional_bond",
-                4: "number_of_validators",
-                5: "total_bond",
-                6: "solution_bond",
-                7: "prev_min_stake",
-                8: "prev_sum_stake",
-                9: "prev_variance_stake",
-                10: "total_proportional_bond",
-            },
-            inplace=True,
-        )
+
         df = datatype_casting(df)
         filename = "data/model_2/df_bond_distribution_testing_{}.csv".format(index)
         df.to_csv(filename)
@@ -441,7 +487,7 @@ def main():
     snapshot, path, req_dirs, args = setup()
     #snapshot.create_substrate_connection(path)
     #get_model_1_data(args, snapshot, req_dirs, path)
-    get_model_2_data(maxbatchsize=3, req_dirs=req_dirs)
+    get_model_2_data(maxbatchsize=4, req_dirs=req_dirs)
 
 
 if __name__ == "__main__":

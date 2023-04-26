@@ -1,6 +1,6 @@
 import numpy as np
 import multiprocessing
-
+import cvxpy as cp
 import pandas as pd
 
 """
@@ -143,6 +143,32 @@ class AdjustmentTool:
         dataframe["prediction"] = dataframe["prediction"].abs()
         return dataframe
 
+
+    def adjust_cvxpy_strategy(self, dataframe=None):
+
+        # Define variables
+        pred = cp.Variable(len(dataframe))
+
+        # Define constraints
+        constraints = []
+        for n, g in dataframe.groupby(['nominator']):
+            idx = g.index
+            target = g['total_bond'].iloc[0]
+            constraints.append(cp.sum(pred[idx]) == target)
+
+        # constraints.append(cp.sum(pred) == cp.sum(data['target']))
+
+        # Define objective
+        objective = cp.Minimize(cp.norm(pred - dataframe['prediction']))
+
+        print(cp.installed_solvers())
+        # Solve optimization problem
+        problem = cp.Problem(objective, constraints)
+        problem.solve(verbose=True)
+
+        # Get optimized predictions
+        dataframe['optimized_prediction'] = pred.value
+        return dataframe
 
 if __name__ == "__main__":
     print("Number of cpu : ", multiprocessing.cpu_count())

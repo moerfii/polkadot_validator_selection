@@ -18,7 +18,6 @@ def split_data(dataframe, test_era=None):
     features = [
         "proportional_bond",
         "total_bond",
-        "number_of_validators",
         "total_proportional_bond",
         "prev_min_stake",
         "prev_sum_stake",
@@ -33,7 +32,6 @@ def split_data(dataframe, test_era=None):
             [
                 "proportional_bond",
                 "total_bond",
-                "number_of_validators",
                 "total_proportional_bond",
                 "prev_min_stake",
                 "prev_sum_stake",
@@ -118,7 +116,8 @@ def model_selection(model="randomforest"):
 
 def prepare(test_era=None):
     """
-    prepare data for training
+    prepare data for training            subtracted_dataframe.loc[subtracted_dataframe['era'] == era, 'proportional_bond'] = merged_dataframe['proportional_bond_x'] - merged_dataframe['proportional_bond_y']
+
     :return:
     """
     # read training data
@@ -145,8 +144,8 @@ def adjust(predicted_dataframe):
     adjust predictions to 100%
     :return:
     """
-    adj = AdjustmentTool(predicted_dataframe)
-    return adj.even_split_strategy()
+    adj = AdjustmentTool()
+    return adj.adjust_cvxpy_strategy(predicted_dataframe)
 
 
 def score(adjusted_predicted_dataframe):
@@ -230,6 +229,7 @@ def main(args):
         save_trained_model(model)
     # predict & append to dataframe
     predicted_dataframe["prediction"] = predict(model, X_test)
+    predicted_dataframe["prediction"] = predicted_dataframe["prediction"].astype(int)
     print("predictions made")
 
     # adjust predictions to 100%

@@ -46,21 +46,21 @@ class ScoringUtility:
             return True
         # compare min stake: goal is to maximise: if calculated is worse return False
         print(
-            f"storedmin: {scores2_array[0]}, calcmin: {int(scores1_array[0])}"
+            f"storedmin: {scores2_array[0]}, pred_min: {int(scores1_array[0])}"
         )
         if scores2_array[0] > int(scores1_array[0]):
             return False
 
         # compare sum stakes: goal is to maximise: if calculated is worse return False
         print(
-            f"storedsum: {scores2_array[1]}, calcsum: {int(scores1_array[1])}"
+            f"storedsum: {scores2_array[1]}, pred_sum: {int(scores1_array[1])}"
         )
         if scores2_array[1] > int(scores1_array[1]):
             return False
 
         # compare variance of stakes: goal is to minimise: if calculated is worse return False
         print(
-            f"storedvar: {scores2_array[2]}, calcvar: {int(scores1_array[2])}"
+            f"storedvar: {scores2_array[2]}, pred_var: {int(scores1_array[2])}"
         )
         if scores2_array[2] < int(scores1_array[2]):
             return False
