@@ -18,7 +18,6 @@ def split_data(dataframe, test_era=None):
     features = [
         "proportional_bond",
         "total_bond",
-        "total_proportional_bond",
         "prev_min_stake",
         "prev_sum_stake",
         "prev_variance_stake",
@@ -32,7 +31,6 @@ def split_data(dataframe, test_era=None):
             [
                 "proportional_bond",
                 "total_bond",
-                "total_proportional_bond",
                 "prev_min_stake",
                 "prev_sum_stake",
                 "prev_variance_stake",
@@ -145,7 +143,7 @@ def adjust(predicted_dataframe):
     :return:
     """
     adj = AdjustmentTool()
-    return adj.adjust_cvxpy_strategy(predicted_dataframe)
+    return adj.even_split_strategy(predicted_dataframe)
 
 
 def score(adjusted_predicted_dataframe):
@@ -256,7 +254,7 @@ if __name__ == "__main__":
         "-m",
         "--model",
         type=str,
-        default="linear",
+        default="lasso",
         help="linear, gradientboosting, randomforest, ridge, lasso",
     )
     parser.add_argument("-p", "--plot", action="store_true")

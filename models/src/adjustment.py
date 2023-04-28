@@ -3,6 +3,7 @@ import multiprocessing
 import cvxpy as cp
 import pandas as pd
 
+
 """
 ONLY WORKS WITH COMPLETE SINGULAR ERAS
 get test_dataframe with predictions made by model
@@ -19,7 +20,14 @@ class AdjustmentTool:
 
 
     def apply_even_split_strategy(self,nominator, dataframe):
+
+
         nominator_df = dataframe.loc[dataframe["nominator"] == nominator].reset_index(drop=True)
+        # if the nominatordf consists of only one row, we simply set the prediction equal to the total bond
+        if len(nominator_df) == 1:
+            nominator_df.loc[0, "prediction"] = nominator_df.loc[0, "total_bond"]
+            return nominator_df
+
         while (nominator_df["prediction"].values < 0).any():
             if len(nominator_df) == 1:
                 nominator_df.loc[0, "prediction"] = 0
@@ -164,7 +172,7 @@ class AdjustmentTool:
         print(cp.installed_solvers())
         # Solve optimization problem
         problem = cp.Problem(objective, constraints)
-        problem.solve(verbose=True)
+        problem.solve(solver="MOSEK", verbose=True)
 
         # Get optimized predictions
         dataframe['optimized_prediction'] = pred.value

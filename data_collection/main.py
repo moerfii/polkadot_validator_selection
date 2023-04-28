@@ -351,7 +351,7 @@ def preprocess_distribution_data(
     )
 
     ## one-hot encoding
-    enc = OneHotEncoder(drop='first', handle_unknown='ignore')
+    enc = OneHotEncoder(drop='first', handle_unknown='error')
     enc_df = pd.DataFrame(enc.fit_transform(concatenated_dataframe[['number_of_validators']]).toarray())
     concatenated_dataframe = concatenated_dataframe.join(enc_df)
     concatenated_dataframe = concatenated_dataframe.drop(columns=['number_of_validators'])
@@ -363,7 +363,7 @@ def impute_data(df):
 
     onehot_columns = ['0_x', '1_x', '2_x', '3_x', '4_x', '5_x', '6_x', '7_x', '8_x', '9_x', '10_x', '11_x', '12_x', '13_x', '14_x']
 
-    impute_columns = ['proportional_bond_y', 'total_bond_y', 'total_proportional_bond_y']
+    impute_columns = ['proportional_bond_y', 'total_proportional_bond_y']
 
     for impute_column in impute_columns:
         for column in onehot_columns:
@@ -388,7 +388,6 @@ def finish_preprocessing(df, eras):
             merged_dataframe = df.loc[df['era'] == era].merge(df.loc[subtracted_dataframe['era'] == era - 1], on=['nominator', 'validator'], how='left')
             merged_dataframe = impute_data(merged_dataframe)
             subtracted_dataframe.loc[subtracted_dataframe['era'] == era, 'proportional_bond'] = merged_dataframe['proportional_bond_x'] - merged_dataframe['proportional_bond_y']
-            subtracted_dataframe.loc[subtracted_dataframe['era'] == era, 'total_bond'] = merged_dataframe['total_bond_x'] - merged_dataframe['total_bond_y']
             subtracted_dataframe.loc[subtracted_dataframe['era'] == era, 'total_proportional_bond'] = merged_dataframe['total_proportional_bond_x'] - merged_dataframe['total_proportional_bond_y']
 
     # drop all rows where era = eras[0]
