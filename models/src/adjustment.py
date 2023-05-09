@@ -20,15 +20,12 @@ class AdjustmentTool:
 
 
     def apply_even_split_strategy(self,nominator, dataframe):
-
-
         nominator_df = dataframe.loc[dataframe["nominator"] == nominator].reset_index(drop=True)
         # if the nominator_df consists of only one row, we simply set the prediction equal to the total bond
         if len(nominator_df['prediction']) == 1:
             nominator_df.loc[0, "prediction"] = nominator_df.loc[0, "total_bond"]
             return nominator_df
 
-        print(nominator_df)
         # count how many 0 predictions there are
         zero_predictions_mask = nominator_df["prediction"] == 0
         try:
@@ -46,6 +43,9 @@ class AdjustmentTool:
         mod_difference_to_total_bond = np.mod(
             abs(difference_to_total_bond), (len(nominator_df) - zero_predictions))
         if not mod_difference_to_total_bond:
+            if int(len(nominator_df)-zero_predictions) == 0:
+                print()
+
             prediction_sum_difference = int(np.divide(difference_to_total_bond, int(len(nominator_df)-zero_predictions)))
         else:
             if difference_to_total_bond < 0:
@@ -81,18 +81,94 @@ class AdjustmentTool:
 
     def preadjustment(self, dataframe):
         """
-        This function makes sure that no predictions are negative and that no predictions are bigger than the value defined in "total_bond".
-
+        This function makes sure that no predictions are negative
         :param dataframe:
-        :return:
+        :return: dataframe with no negative predictions
         """
-
         for index, row in dataframe.iterrows():
             if row["prediction"] < 0:
                 dataframe.loc[index, "prediction"] = 0
-            if row["prediction"] > row["total_bond"]:
-                dataframe.loc[index, "prediction"] = row["total_bond"]
         return dataframe
+
+    def apply_proportional_split_strategy(self, nominator, dataframe):
+        nominator_df = dataframe.loc[dataframe["nominator"] == nominator].reset_index(drop=True)
+        total_bond = nominator_df.loc[0, "total_bond"]
+        # if the nominator_df consists of only one row, we simply set the prediction equal to the total bond
+        if len(nominator_df['prediction']) == 1:
+            nominator_df.loc[0, "prediction"] = total_bond
+            return nominator_df
+
+        # calculate ratio of prediction to sum of predictions
+        nominator_df["ratio"] = nominator_df["prediction"] / nominator_df["prediction"].sum()
+
+        # if the ratio is NaN, we set an even split
+        if nominator_df["ratio"].isnull().values.any():
+            nominator_df["ratio"] = nominator_df["ratio"].fillna(1/len(nominator_df))
+
+        # multiply ratio with total bond
+        nominator_df["prediction"] = nominator_df["ratio"] * nominator_df["total_bond"]
+
+        # round prediction to nearest integer
+        nominator_df["prediction"] = nominator_df["prediction"].round()
+
+        # ensure that nominator_df["prediction"] is type int64
+        nominator_df["prediction"] = nominator_df["prediction"].astype("int64")
+
+        # calculate difference between total bond and sum of predictions
+        difference_to_total_bond = np.subtract(
+            total_bond, nominator_df["prediction"].sum()
+        )
+
+        # add difference to first prediction
+        nominator_df.loc[0, "prediction"] = nominator_df.loc[0, "prediction"] + difference_to_total_bond
+
+        # sanity check
+        sanity_check = np.subtract(
+            total_bond, nominator_df["prediction"].sum()
+        )
+        if sanity_check != 0:
+            print(nominator_df)
+            print(sanity_check)
+            raise ValueError("sanity check failed")
+
+        return nominator_df
+
+    def proportional_split_strategy(self, dataframe=None):
+        """
+        This function groups by nominator, sums up the prediction values, compares with the total bond (which is the 100% benchmark) and adjusts the prediction values accordingly
+        There are two cases:
+        1 The difference divides nicely into the number of validators, then the difference is evenly
+        distributed among the validators
+        2 The difference does not divide nicely into the number of validators, then the difference is
+        evenly distributed among the validators and the first validator gets the remainder
+        :param dataframe: dataframe with columns: nominator, validator, proportional_bond, total_bond, number_of_validators, total_proportional_bond, era, solution_bond, prediction
+        :return: adjusted prediction values in prediction column
+        """
+        if dataframe is None:
+            raise ValueError("dataframe is None")
+
+        dataframe["prediction"] = dataframe["prediction"].astype(int)
+        dataframe.reset_index(drop=True, inplace=True)
+        nominators = dataframe["nominator"].unique()
+        counter = 0
+
+        dataframe = self.preadjustment(dataframe)
+
+        """
+        # this is the single process version // DEBUGGING only
+        for nominator in nominators:
+            print(nominator)
+            self.apply_proportional_split_strategy(nominator, dataframe)
+        """
+
+        with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
+            results = pool.starmap(self.apply_proportional_split_strategy, [(nominator, dataframe) for nominator in nominators])
+        adjusted_dataframe = pd.concat(results)
+
+        return adjusted_dataframe
+
+
+
 
     def even_split_strategy(self, dataframe=None):
         """
@@ -106,7 +182,7 @@ class AdjustmentTool:
         :return: adjusted prediction values in prediction column
         """
         if dataframe is None:
-            dataframe = self.dataframe
+            raise ValueError("dataframe is None")
 
         dataframe["prediction"] = dataframe["prediction"].astype(int)
         dataframe.reset_index(drop=True, inplace=True)
@@ -166,6 +242,13 @@ class AdjustmentTool:
 
 
     def adjust_cvxpy_strategy(self, dataframe=None):
+
+        if dataframe is None:
+            raise ValueError("dataframe is None")
+
+        dataframe["prediction"] = dataframe["prediction"].astype(int)
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.preadjustment(dataframe)
 
         # Define variables
         pred = cp.Variable(len(dataframe))

@@ -1,6 +1,8 @@
 {
-"model": "linear",
+"model": "ridge",
   "train": "../data_collection/data/model_2/df_bond_distribution_testing_0.csv",
+  "test": "../data_collection/data/model_2/df_bond_distribution_testing_1.csv",
+  "compare": "../data_collection/data/stored_solutions_data/",
 "era": "700",
   "plot": null,
   "save": null,

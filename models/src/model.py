@@ -48,9 +48,9 @@ class Model:
                 random_state=42,
             )
         elif model_type == "ridge":
-            self.model = linear_model.Ridge(alpha=trial.suggest_float("alpha", 0.01, 1.0))
+            self.model = Ridge(alpha=trial.suggest_float("alpha", 0.01, 1.0))
         elif model_type == "lasso":
-            self.model = linear_model.Lasso(alpha=trial.suggest_float("alpha", 0.01, 1.0))
+            self.model = Lasso(alpha=trial.suggest_float("alpha", 0.01, 1.0))
 
     def objective_model_accuracy(self, trial):
         self.objective(trial)
@@ -61,7 +61,7 @@ class Model:
 
     def objective_score_boosting(self, trial):
         self.objective(trial)
-        return self.special_preprocessing_with_adjustment()
+        return self.cross_validate()
 
     def special_preprocessing(self):
         """
@@ -144,12 +144,16 @@ class Model:
         self.X = self.dataframe.loc[:, self.features]
         self.y = self.dataframe.loc[:, self.target_column]
 
-    def split_data(self):
+    def split_data(self, test_era=None):
         """
-        split data into train and test and drops an non-numeric columns
+        drops non-numeric columns, splits into train and test. test being the test era
         :return: X_train, X_test, y_train, y_test
         """
-        return
+        drop_columns = self.X.select_dtypes(include=['object']).columns
+        self.X_train = self.X[self.X["era"] != test_era].drop(drop_columns, axis=1)
+        self.X_test = self.X[self.X["era"] == test_era].drop(drop_columns, axis=1)
+        self.y_train = self.y[self.X["era"] != test_era]
+        self.y_test = self.y[self.X["era"] == test_era]
 
     def cross_validate(self):
         """
@@ -167,13 +171,10 @@ class Model:
             self.y_test = self.y.loc[indices[1]]
             self.scale_data()
             self.model.fit(self.X_train[:, :21], self.y_train)
-            self.X_test.reset_index(drop=True, inplace=True)
-            self.y_test.reset_index(drop=True, inplace=True)
-            predicted_dataframe = pd.concat([pd.DataFrame(self.X_test), pd.DataFrame(self.y_test)], axis=1)
-            predicted_dataframe["prediction"] = self.model.predict(self.X_test[:, :21])
+            predicted_dataframe = pd.concat([self.X.loc[indices[1]], self.y.loc[indices[1]]], axis=1)
+            predicted_dataframe["prediction"] = self.model.predict(self.X_test[:, :21]) ### change that it gets rid before (X_test shouldnt have non numeric)
             adjusted_predicted_dataframe = self.adjust(predicted_dataframe)
             score_of_prediction = self.score(adjusted_predicted_dataframe)
-
 
     def scale_data(self):
         """
@@ -241,29 +242,10 @@ class Model:
         filename = f"../models/trained_models/{type(self.model).__name__}.sav"
         pickle.dump(self.model, open(filename, "wb"))
 
-    def predict(self):
-        """
-        predict
-        :return:
-        """
-        return self.model.predict(self.X_test)
-
     def load_trained_model(self, model_name):
 
         self.model = pickle.load(open(model_name, "rb"))
         return self.model
-
-    def predict_with_loaded_model(self, model_name, X_test):
-
-            self.model = self.load_trained_model(model_name)
-            return predict(self.model, X_test)
-
-    def evaluate_with_loaded_model(self, model_name, X_test, y_test, total_bond):
-
-            self.model = self.load_trained_model(model_name)
-            return evaluate(self.predict_with_loaded_model(model_name, X_test), y_test, total_bond)
-
-
 
     def model_selection(self, model_type):
         """
@@ -281,7 +263,8 @@ class Model:
             self.model = Ridge()
         elif model_type == "lasso":
             self.model = Lasso()
-
+        else:
+            raise ValueError("model type not found")
 
     def evaluation_selection(self, evaluation_type):
         """
@@ -306,7 +289,32 @@ if __name__ == "__main__":
     dataframe = pd.read_csv("../../data_collection/data/model_2/df_bond_distribution_testing_0.csv")
     dataframe.drop(["Unnamed: 0"], axis=1, inplace=True)
 
-    model = Model(dataframe, "solution_bond")
+    features = [
+    "nominator",
+    "validator",
+    "proportional_bond",
+    "total_bond",
+    "prev_min_stake",
+    "prev_sum_stake",
+    "prev_variance_stake",
+    "era",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14"
+  ]
+    model = Model(dataframe, "solution_bond", features)
     study = optuna.create_study(direction="maximize",
                                 storage="sqlite:///db.sqlite3")
     study.optimize(model.objective_score_boosting, n_trials=100)
