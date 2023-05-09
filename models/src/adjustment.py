@@ -23,52 +23,45 @@ class AdjustmentTool:
 
 
         nominator_df = dataframe.loc[dataframe["nominator"] == nominator].reset_index(drop=True)
-        # if the nominatordf consists of only one row, we simply set the prediction equal to the total bond
-        if len(nominator_df) == 1:
+        # if the nominator_df consists of only one row, we simply set the prediction equal to the total bond
+        if len(nominator_df['prediction']) == 1:
             nominator_df.loc[0, "prediction"] = nominator_df.loc[0, "total_bond"]
             return nominator_df
 
-        while (nominator_df["prediction"].values < 0).any():
-            if len(nominator_df) == 1:
-                nominator_df.loc[0, "prediction"] = 0
-            else:
-                nominator_df = self.adjust_negative_stakes_substrategy_apply_abs(
-                    nominator_df
-                )
+        print(nominator_df)
+        # count how many 0 predictions there are
+        zero_predictions_mask = nominator_df["prediction"] == 0
+        try:
+            zero_predictions = zero_predictions_mask.value_counts().loc[True]
+        except KeyError:
+            zero_predictions = 0
+
+
         total_bond = nominator_df.loc[0, "total_bond"]
+        if total_bond == 52704620144862450:
+            print()
         difference_to_total_bond = np.subtract(
             total_bond, nominator_df["prediction"].sum()
         )
         mod_difference_to_total_bond = np.mod(
-            difference_to_total_bond, len(nominator_df)
-        )
+            abs(difference_to_total_bond), (len(nominator_df) - zero_predictions))
         if not mod_difference_to_total_bond:
-            prediction_sum_difference = int(
-                np.divide(difference_to_total_bond, int(len(nominator_df)))
-            )
+            prediction_sum_difference = int(np.divide(difference_to_total_bond, int(len(nominator_df)-zero_predictions)))
         else:
-            prediction_sum_difference = int(
-                np.divide(
-                    difference_to_total_bond
-                    - mod_difference_to_total_bond,
-                    len(nominator_df),
-                )
-            )
+            if difference_to_total_bond < 0:
+                mod_difference_to_total_bond = -mod_difference_to_total_bond
+            prediction_sum_difference = int(np.divide(
+                    (difference_to_total_bond - mod_difference_to_total_bond),
+                    (len(nominator_df) - zero_predictions)))
+
+            # here we simply add the difference to the first prediction, should not affect the result
             nominator_df.loc[0, "prediction"] = nominator_df.loc[0, "prediction"].astype("int64") \
                                                         + mod_difference_to_total_bond
 
-        if prediction_sum_difference > 0 or len(nominator_df)==1:
-            nominator_df.loc[:, ["prediction"]] = nominator_df.loc[:, "prediction"].add(
-                prediction_sum_difference
-            )
-        else:
-            nominator_df.loc[:, ["prediction"]] = nominator_df.loc[:, "prediction"].add(
-                prediction_sum_difference
-            )
-            while (nominator_df["prediction"].values < 0).any():
-                nominator_df = self.adjust_negative_stakes_substrategy_reduce_maxindex(
-                    nominator_df
-                )
+        nominator_df.loc[~zero_predictions_mask, ["prediction"]] = nominator_df.loc[~zero_predictions_mask, "prediction"]\
+            .add(prediction_sum_difference
+        )
+
 
 
         sanity_check = np.subtract(
@@ -85,6 +78,22 @@ class AdjustmentTool:
             raise ValueError("negative stakes")
 
         return nominator_df
+
+    def preadjustment(self, dataframe):
+        """
+        This function makes sure that no predictions are negative and that no predictions are bigger than the value defined in "total_bond".
+
+        :param dataframe:
+        :return:
+        """
+
+        for index, row in dataframe.iterrows():
+            if row["prediction"] < 0:
+                dataframe.loc[index, "prediction"] = 0
+            if row["prediction"] > row["total_bond"]:
+                dataframe.loc[index, "prediction"] = row["total_bond"]
+        return dataframe
+
     def even_split_strategy(self, dataframe=None):
         """
         This function groups by nominator, sums up the prediction values, compares with the total bond (which is the 100% benchmark) and adjusts the prediction values accordingly
@@ -104,13 +113,17 @@ class AdjustmentTool:
         nominators = dataframe["nominator"].unique()
         counter = 0
 
-        """ This is for testing purposes
+        dataframe = self.preadjustment(dataframe)
+
+        # this is the single process version
         for nominator in nominators:
             self.apply_even_split_strategy(nominator, dataframe)
-        """
+        counter += 1
+
         with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
             results = pool.starmap(self.apply_even_split_strategy, [(nominator, dataframe) for nominator in nominators])
         adjusted_dataframe = pd.concat(results)
+
         return adjusted_dataframe
 
     def weighted_split_strategy(self):

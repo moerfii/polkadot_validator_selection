@@ -126,6 +126,7 @@ def get_data(
                 )
 
             if not os.path.exists(calculated_solution_path_file):
+                print('calculating solution for era: ', row["Era"], ' at block: ', block_number_snapshot, '...')
                 # calculate solution with custom phragmen rust script & only save if its equal or better to the stored one.
                 snapshot_instance.set_block_number(block_number_snapshot)
                 (
@@ -247,6 +248,7 @@ def setup():
     parser.add_argument("-m", "--mode", help="Select live or historic", type=str)
     parser.add_argument("-s", "--save", help="Provide path to save file", type=str)
     parser.add_argument("-b", "--batch", help="Provide batch size", type=int)
+    parser.add_argument("-e", "--era", help="Provide era number", type=int)
     args = parser.parse_args()
     if args.cpath is None:
         raise UserWarning("Please submit the path to your config.json")
@@ -483,10 +485,12 @@ def get_model_2_data(maxbatchsize=12, req_dirs=None):
 
 
 def main():
+    # issue: have to provide file with blocknumbers prior to execution
+
     snapshot, path, req_dirs, args = setup()
-    #snapshot.create_substrate_connection(path)
-    #get_model_1_data(args, snapshot, req_dirs, path)
-    get_model_2_data(maxbatchsize=4, req_dirs=req_dirs)
+    snapshot.create_substrate_connection(path)
+    get_model_1_data(args, snapshot, req_dirs, path)
+    #get_model_2_data(maxbatchsize=4, req_dirs=req_dirs)
 
 
 if __name__ == "__main__":

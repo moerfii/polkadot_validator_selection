@@ -10,9 +10,13 @@ from sklearn import linear_model
 
 from src.adjustment import AdjustmentTool
 from src.score import ScoringTool, ScoringUtility
+from src.model import Model
 
 from sklearn.compose import make_column_transformer
 import pickle
+from sklearn.model_selection import GroupShuffleSplit
+
+
 
 def split_data(dataframe, test_era=None):
     features = [
@@ -48,8 +52,6 @@ def split_data(dataframe, test_era=None):
     X_train = x.loc[dataframe["era"] != test_era]
     column_transformer.fit(X_train)
     X_train = pd.DataFrame(column_transformer.transform(X_train))
-
-
 
     X_test = x.loc[dataframe["era"] == test_era]
     total_bond = X_test["total_bond"]
@@ -110,17 +112,23 @@ def model_selection(model="randomforest"):
         return linear_model.Lasso(alpha=0.1)
 
 
-
-
-def prepare(test_era=None):
+def prepare(test_era=None, path=None, target_column="solution_bond", features=None):
     """
-    prepare data for training            subtracted_dataframe.loc[subtracted_dataframe['era'] == era, 'proportional_bond'] = merged_dataframe['proportional_bond_x'] - merged_dataframe['proportional_bond_y']
+    prepare data for training
 
     :return:
     """
     # read training data
-    dataframe = pd.read_csv("../data_collection/data/model_2/df_bond_distribution_testing_0.csv")
-    dataframe.drop(["Unnamed: 0"], axis=1, inplace=True)
+    dataframe = pd.read_csv(
+        path
+    )
+    model = Model(dataframe, target_column, features)
+
+    return model
+
+
+
+    """ old code    
     # split data into train and test (provide era to test on) # todo: in the future the test era should be the last era
     X_train, X_test, y_train, y_test, total_bond = split_data(
         dataframe, test_era=test_era
@@ -135,7 +143,7 @@ def prepare(test_era=None):
     X_train.drop(drop_columns, axis=1, inplace=True)
     X_test.drop(drop_columns, axis=1, inplace=True)
     return X_train, X_test, y_train, y_test, predicted_dataframe
-
+    """
 
 def adjust(predicted_dataframe):
     """
@@ -171,7 +179,8 @@ def plot_comparison(score_of_prediction, score_of_calculated):
 
 
 def compare(score_of_prediction, era):
-    # todo: should pull the calculated solution via storage query
+    # todo: should pull the stored solution via storage query
+    # todo: should calculate the score of the stored solution
     comparer = ScoringUtility()
     filename = (
         f"../data_collection/data/calculated_solutions_data/{era}_winners.json"
@@ -197,22 +206,28 @@ def main(args):
     :param era: era to test on
     :return:
     """
-    if args.model is None:
-        model = "linear"
-    else:
-        model = args.model
 
-    if args.load:
-        model = load_trained_model(model)
+    if args.train is None:
+        print("Model is not trained")
+        # todo: THIS IS INCOMPLETE
+        model = load_trained_model(args.model)
 
-        #X_test = pd.read_csv(
+        # X_test = pd.read_csv(
         #    f"../data_collection/data/model_2/{era}.csv"
-        #)  # todo: adapt to last era/
-        # should probalby not be csv
+        # )  # todo: adapt to last era/
+        # should probably not be csv
     else:
-        # prepare data
-        X_train, X_test, y_train, y_test, predicted_dataframe = prepare(args.era)
+        model = prepare(args.era, args.train, args.target, args.features)
+        model.model_selection(args.model)
+        model.cross_validate()
+        print("model trained")
 
+        """
+        ########3 old
+        # prepare data
+        X_train, X_test, y_train, y_test, predicted_dataframe = prepare(
+            args.era, args.train, args.target
+        )
 
         print("data prepared")
 
@@ -222,12 +237,15 @@ def main(args):
         # train model
         train(model, X_train, y_train)
         print("model trained")
-
+        """
     if args.save:
         save_trained_model(model)
     # predict & append to dataframe
     predicted_dataframe["prediction"] = predict(model, X_test)
-    predicted_dataframe["prediction"] = predicted_dataframe["prediction"].astype(int)
+
+    predicted_dataframe["prediction"] = predicted_dataframe[
+        "prediction"
+    ].astype(int)
     print("predictions made")
 
     # adjust predictions to 100%
@@ -247,19 +265,32 @@ def main(args):
     return compare(score_of_prediction, args.era)
 
 
-if __name__ == "__main__":
+def setup():
+    """
+    setup parser and override any default arguments provided in config.json
+    :return:
+    """
+    with open("config.json", "r") as jsonfile:
+        config = json.load(jsonfile)
     parser = argparse.ArgumentParser()
+    parser.set_defaults(**config)
     parser.add_argument("-e", "--era", type=int)
     parser.add_argument(
         "-m",
         "--model",
         type=str,
-        default="lasso",
         help="linear, gradientboosting, randomforest, ridge, lasso",
     )
+    parser.add_argument("-t", "--train", type=str, help="provide path to training data csv")
     parser.add_argument("-p", "--plot", action="store_true")
     parser.add_argument("-s", "--save", action="store_true")
-    parser.add_argument("-l", "--load", action="store_true")
+    parser.add_argument("-x", "--target", type=str, help="target column")
+    parser.add_argument("-f", "--features", nargs="+", help="list of features")
+    return parser
+
+
+if __name__ == "__main__":
+    parser = setup()
     result, score_of_prediction, score_of_calculated = main(
         parser.parse_args()
     )

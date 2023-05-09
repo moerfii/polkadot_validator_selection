@@ -67,6 +67,9 @@ class ScoringUtility:
 
 
 if __name__ == "__main__":
+
+
+
     scorer = ScoringUtility()
     dirs = sorted(os.listdir("../data/calculated_solutions_data/"))
     scores1 = []

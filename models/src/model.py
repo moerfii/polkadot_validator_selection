@@ -4,29 +4,33 @@ import optuna
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import train_test_split
-from sklearn import linear_model
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.model_selection import GroupShuffleSplit
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.linear_model import Ridge, Lasso
 from sklearn.model_selection import KFold
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import pandas as pd
-from score import ScoringTool, ScoringUtility
-from adjustment import AdjustmentTool
+from src.score import ScoringTool, ScoringUtility
+from src.adjustment import AdjustmentTool
 from sklearn.compose import make_column_transformer
 
 
 class Model:
-    def __init__(self, dataframe, target_column):
+    def __init__(self, dataframe, target_column, features):
         self.dataframe = dataframe
         self.target_column = target_column
+        self.features = features
         self.model = None
+        self.X = None
+        self.y = None
         self.X_train = None
         self.X_test = None
         self.y_train = None
         self.y_test = None
         self.total_bond = None
-        self.X_train, self.X_test, self.y_train, self.y_test = self.preprocess_data()
-        #self.model = self.train()
-        #self.save_trained_model()
+        self.preprocess_data()
 
     def objective(self, trial):
         model_type = trial.suggest_categorical("regressor", ["ridge", "lasso", "randomforest", "gradientboosting"])
@@ -85,7 +89,7 @@ class Model:
     def special_preprocessing_with_adjustment(self):
 
         max_era = self.dataframe["era"].max()
-        range_test_eras = range(max_era - 4, max_era) # todo: change back to 4
+        range_test_eras = range(max_era - 2, max_era) # todo: change back to 4
         scores = []
         for test_era in range_test_eras:
             print(test_era)
@@ -135,45 +139,67 @@ class Model:
     def preprocess_data(self):
         """
         preprocess data for training
-        :return:
+        :return: X_train, X_test, y_train, y_test
         """
-        X_train, X_test, y_train, y_test = self.split_data(self.dataframe, self.target_column)
-        return X_train, X_test, y_train, y_test
+        self.X = self.dataframe.loc[:, self.features]
+        self.y = self.dataframe.loc[:, self.target_column]
 
-    def split_data(self, dataframe, target_column):
+    def split_data(self):
         """
         split data into train and test and drops an non-numeric columns
-        :param dataframe:
-        :param target_column:
+        :return: X_train, X_test, y_train, y_test
+        """
+        return
+
+    def cross_validate(self):
+        """
+        cross validation with groupsplitter
         :return:
         """
-        dataframe = dataframe.select_dtypes(exclude=['object'])
-        X = dataframe.drop(target_column, axis=1)
-        y = dataframe[target_column]
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        return X_train, X_test, y_train, y_test
+        splits = self.X["era"].nunique()
+        group_splitter = GroupShuffleSplit(n_splits=splits, train_size=.7, random_state=42)
+        gs_iterator = group_splitter.split(self.X, self.y, groups=self.X.era)
+        score = []
+        while (indices := next(gs_iterator, None)) is not None:
+            self.X_train = self.X.loc[indices[0]]
+            self.y_train = self.y.loc[indices[0]]
+            self.X_test = self.X.loc[indices[1]]
+            self.y_test = self.y.loc[indices[1]]
+            self.scale_data()
+            self.model.fit(self.X_train[:, :21], self.y_train)
+            self.X_test.reset_index(drop=True, inplace=True)
+            self.y_test.reset_index(drop=True, inplace=True)
+            predicted_dataframe = pd.concat([pd.DataFrame(self.X_test), pd.DataFrame(self.y_test)], axis=1)
+            predicted_dataframe["prediction"] = self.model.predict(self.X_test[:, :21])
+            adjusted_predicted_dataframe = self.adjust(predicted_dataframe)
+            score_of_prediction = self.score(adjusted_predicted_dataframe)
+
+
+    def scale_data(self):
+        """
+        identifies which columns are numeric and scales them
+        :return:
+        """
+        transform_columns = self.X_train.select_dtypes(exclude=['object']).columns
+        column_transformer = make_column_transformer(
+            (
+                MinMaxScaler(),
+                transform_columns,
+            ),
+            remainder="passthrough",
+        )
+        self.X_train = column_transformer.fit_transform(self.X_train)
+        self.X_test = column_transformer.transform(self.X_test)
+
 
 
     def special_split_data(self, dataframe, test_era=None):
-        features = [
-            "proportional_bond",
-            "total_bond",
-            "number_of_validators",
-            "total_proportional_bond",
-            "prev_min_stake",
-            "prev_sum_stake",
-            "prev_variance_stake",
-            "nominator",
-            "validator",
-            "era",
-        ]
         column_transformer = make_column_transformer(
             (
-                StandardScaler(),
+                MinMaxScaler(),
                 [
                     "proportional_bond",
                     "total_bond",
-                    "number_of_validators",
                     "total_proportional_bond",
                     "prev_min_stake",
                     "prev_sum_stake",
@@ -245,11 +271,17 @@ class Model:
         :param model_type:
         :return:
         """
-        if model_type == "xgboost":
-            model = XGBRegressor()
-        elif model_type == "lightgbm":
-            model = LGBMRegressor()
-        return model
+        if model_type == "linear":
+            self.model = LinearRegression()
+        elif model_type == "random_forest":
+            self.model = RandomForestRegressor()
+        elif model_type == "gradientboosting":
+            self.model = GradientBoostingRegressor()
+        elif model_type == "ridge":
+            self.model = Ridge()
+        elif model_type == "lasso":
+            self.model = Lasso()
+
 
     def evaluation_selection(self, evaluation_type):
         """
@@ -271,7 +303,7 @@ class Model:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
-    dataframe = pd.read_csv("../../data_collection/data/model_2/df_bond_distribution_0.csv")
+    dataframe = pd.read_csv("../../data_collection/data/model_2/df_bond_distribution_testing_0.csv")
     dataframe.drop(["Unnamed: 0"], axis=1, inplace=True)
 
     model = Model(dataframe, "solution_bond")
