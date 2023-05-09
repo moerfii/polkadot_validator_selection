@@ -123,7 +123,7 @@ class Model:
         :return:
         """
         adjustment_tool = AdjustmentTool()
-        adjusted_predicted_dataframe = adjustment_tool.even_split_strategy(
+        adjusted_predicted_dataframe = adjustment_tool.proportional_split_strategy(
             predicted_dataframe
         )
         return adjusted_predicted_dataframe
@@ -163,19 +163,21 @@ class Model:
         splits = self.X["era"].nunique()
         group_splitter = GroupShuffleSplit(n_splits=splits, train_size=.7, random_state=42)
         gs_iterator = group_splitter.split(self.X, self.y, groups=self.X.era)
-        score = []
+        drop_columns = self.X.select_dtypes(include=['object']).columns
+        scores = []
         while (indices := next(gs_iterator, None)) is not None:
-            self.X_train = self.X.loc[indices[0]]
+            self.X_train = self.X.loc[indices[0]].drop(drop_columns, axis=1)
             self.y_train = self.y.loc[indices[0]]
-            self.X_test = self.X.loc[indices[1]]
+            self.X_test = self.X.loc[indices[1]].drop(drop_columns, axis=1)
             self.y_test = self.y.loc[indices[1]]
             self.scale_data()
-            self.model.fit(self.X_train[:, :21], self.y_train)
+            self.model.fit(self.X_train, self.y_train)
             predicted_dataframe = pd.concat([self.X.loc[indices[1]], self.y.loc[indices[1]]], axis=1)
-            predicted_dataframe["prediction"] = self.model.predict(self.X_test[:, :21]) ### change that it gets rid before (X_test shouldnt have non numeric)
+            predicted_dataframe["prediction"] = self.model.predict(self.X_test)
             adjusted_predicted_dataframe = self.adjust(predicted_dataframe)
             score_of_prediction = self.score(adjusted_predicted_dataframe)
-
+            scores.append(score_of_prediction[0])
+        return sum(scores) / len(scores)
     def scale_data(self):
         """
         identifies which columns are numeric and scales them
