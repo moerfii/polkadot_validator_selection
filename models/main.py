@@ -72,7 +72,6 @@ def compare(score_of_prediction, era, path):
     :param era:
     """
     # todo: should pull the stored solution via storage query
-    # todo: should calculate the score of the stored solution
     comparer = ScoringUtility()
 
     filename = (
@@ -141,6 +140,7 @@ def main(args):
     print(f"result: {result}")
     print(f"score of prediction: {score_of_prediction}")
     print(f"score of stored: {score_of_calculated}")
+
 
 def setup():
     """

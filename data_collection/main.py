@@ -87,7 +87,7 @@ def get_data(
         try:
             if not os.path.exists(
                 snapshot_path_file
-            ):  # todo: reminder: change to not os.path.exists
+            ):
                 # acquire snapshot
                 snapshot_instance.set_block_number(block_number_snapshot)
                 snapshot_data = get_snapshot_data(snapshot_instance)
@@ -202,21 +202,18 @@ def datatype_casting(dataframe):
     cast data types to reduce memory usage
     :return:
     """
-    dataframe["era"] = dataframe["era"].astype("int16")
-    dataframe["total_bond"] = dataframe["total_bond"].astype("int64")
-    dataframe["total_proportional_bond"] = dataframe[
-        "total_proportional_bond"
-    ].astype("int64")
-    dataframe["proportional_bond"] = dataframe["proportional_bond"].astype(
-        "int64"
-    )
-    dataframe["prev_min_stake"] = dataframe["prev_min_stake"].astype("int64")
-    dataframe["prev_sum_stake"] = dataframe["prev_sum_stake"].astype("int64")
-    dataframe["prev_variance_stake"] = dataframe["prev_variance_stake"].astype(
-        "int64"
-    )
-    dataframe["solution_bond"] = dataframe["solution_bond"].astype("int64")
+    dtypes_dict = {
+        "era": "int16",
+        "total_bond": "int64",
+        "total_proportional_bond": "int64",
+        "proportional_bond": "int64",
+        "prev_min_stake": "int64",
+        "prev_sum_stake": "int64",
+        "prev_variance_stake": "int64",
+        "solution_bond": "int64",
+    }
 
+    dataframe = dataframe.astype(dtype=dtypes_dict)
     return dataframe
 
 def environment_handler():
@@ -248,7 +245,7 @@ def setup():
     parser.add_argument("-m", "--mode", help="Select live or historic", type=str)
     parser.add_argument("-s", "--save", help="Provide path to save file", type=str)
     parser.add_argument("-b", "--batch", help="Provide batch size", type=int)
-    parser.add_argument("-e", "--era", help="Provide era number", type=int)
+    parser.add_argument("-e", "--eras", nargs="+", help="range of eras to process, e.g. [500, 600]")
     args = parser.parse_args()
     if args.cpath is None:
         raise UserWarning("Please submit the path to your config.json")
@@ -486,7 +483,6 @@ def get_model_2_data(maxbatchsize=12, req_dirs=None):
 
 def main():
     # issue: have to provide file with blocknumbers prior to execution
-
     snapshot, path, req_dirs, args = setup()
     snapshot.create_substrate_connection(path)
     get_model_1_data(args, snapshot, req_dirs, path)

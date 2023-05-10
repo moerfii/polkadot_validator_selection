@@ -1,5 +1,4 @@
 import numpy as np
-
 import json
 import os
 
@@ -22,13 +21,8 @@ class ScoringUtility:
             stakes.append(row[1])
         stakes_array = np.array(stakes)
 
-        # Calculate the sum of the stakes
         sum_of_stakes = int(np.sum(stakes_array))
-
-        # Calculate the variance of the stakes
         variance_of_stakes = int(np.var(stakes_array))
-
-        # Calculate the minimum value of the stakes
         min_stake = int(np.min(stakes_array))
 
         return np.asarray([min_stake, sum_of_stakes, variance_of_stakes])
@@ -46,21 +40,21 @@ class ScoringUtility:
             return True
         # compare min stake: goal is to maximise: if calculated is worse return False
         print(
-            f"storedmin: {scores2_array[0]}, pred_min: {int(scores1_array[0])}"
+            f"stored min: {scores2_array[0]}, predicted min: {int(scores1_array[0])}"
         )
         if scores2_array[0] > int(scores1_array[0]):
             return False
 
         # compare sum stakes: goal is to maximise: if calculated is worse return False
         print(
-            f"storedsum: {scores2_array[1]}, pred_sum: {int(scores1_array[1])}"
+            f"stored sum: {scores2_array[1]}, predicted sum: {int(scores1_array[1])}"
         )
         if scores2_array[1] > int(scores1_array[1]):
             return False
 
         # compare variance of stakes: goal is to minimise: if calculated is worse return False
         print(
-            f"storedvar: {scores2_array[2]}, pred_var: {int(scores1_array[2])}"
+            f"stored var: {scores2_array[2]}, predicted var: {int(scores1_array[2])}"
         )
         if scores2_array[2] < int(scores1_array[2]):
             return False
@@ -70,6 +64,27 @@ class ScoringUtility:
         # check if all the edges present in calc solution are also present in snapshot, if this is the case return True
         # more of a sanity check
         return True
+
+
+class ScoringTool:
+    @staticmethod
+    def score_solution(solution):
+        sum_of_stakes = int(np.sum(solution))
+        variance_of_stakes = int(np.var(solution))
+        min_stake = int(np.min(solution))
+
+        return np.asarray([min_stake, sum_of_stakes, variance_of_stakes])
+
+    @staticmethod
+    def dataframe_groupby_predictions_by_validators(dataframe):
+        """
+        Groups the predictions by the validator (sums up) and returns a dataframe
+        """
+        return (
+            dataframe.loc[:, ["validator", "prediction"]]
+            .groupby("validator")
+            .sum()
+        )
 
 
 if __name__ == "__main__":
@@ -93,29 +108,3 @@ if __name__ == "__main__":
         print(index)
         print(scorer.is_score1_better_than_score2(value, scores2[index]))
     print()
-
-
-class ScoringTool:
-    @staticmethod
-    def score_solution(solution):
-        # Calculate the sum of the stakes
-        sum_of_stakes = int(np.sum(solution))
-
-        # Calculate the variance of the stakes
-        variance_of_stakes = int(np.var(solution))
-
-        # Calculate the minimum value of the stakes
-        min_stake = int(np.min(solution))
-
-        return np.asarray([min_stake, sum_of_stakes, variance_of_stakes])
-
-    @staticmethod
-    def dataframe_groupby_predictions_by_validators(dataframe):
-        """
-        Groups the predictions by the validator (sums up) and returns a dataframe
-        """
-        return (
-            dataframe.loc[:, ["validator", "prediction"]]
-            .groupby("validator")
-            .sum()
-        )

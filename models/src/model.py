@@ -137,7 +137,7 @@ class Model:
             predicted_dataframe["prediction"] = self.model.predict(self.X_test)
             adjusted_predicted_dataframe = self.adjust(predicted_dataframe)
             score_of_prediction = self.score(adjusted_predicted_dataframe)
-            scores.append(score_of_prediction[0])
+            scores.append(score_of_prediction[1])
         return sum(scores) / len(scores)
 
     def scale_data(self):
@@ -242,7 +242,7 @@ if __name__ == "__main__":
     ]
     model = Model(dataframe, "solution_bond", features)
     study = optuna.create_study(
-        direction="maximize", storage="sqlite:///db.sqlite3"
+        direction="minimize", storage="sqlite:///db.sqlite3"
     )
     study.optimize(model.objective_score_boosting, n_trials=100)
     print(f"Best value: {study.best_value} (params: {study.best_params})")

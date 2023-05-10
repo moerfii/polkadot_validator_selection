@@ -13,17 +13,19 @@ implement various adjustment strategies
 
 
 class AdjustmentTool:
-
     def __init__(self, dataframe=None):
         self.adjusted_dataframe = None
         self.dataframe = dataframe
 
-
-    def apply_even_split_strategy(self,nominator, dataframe):
-        nominator_df = dataframe.loc[dataframe["nominator"] == nominator].reset_index(drop=True)
+    def apply_even_split_strategy(self, nominator, dataframe):
+        nominator_df = dataframe.loc[
+            dataframe["nominator"] == nominator
+        ].reset_index(drop=True)
         # if the nominator_df consists of only one row, we simply set the prediction equal to the total bond
-        if len(nominator_df['prediction']) == 1:
-            nominator_df.loc[0, "prediction"] = nominator_df.loc[0, "total_bond"]
+        if len(nominator_df["prediction"]) == 1:
+            nominator_df.loc[0, "prediction"] = nominator_df.loc[
+                0, "total_bond"
+            ]
             return nominator_df
 
         # count how many 0 predictions there are
@@ -33,7 +35,6 @@ class AdjustmentTool:
         except KeyError:
             zero_predictions = 0
 
-
         total_bond = nominator_df.loc[0, "total_bond"]
         if total_bond == 52704620144862450:
             print()
@@ -41,28 +42,40 @@ class AdjustmentTool:
             total_bond, nominator_df["prediction"].sum()
         )
         mod_difference_to_total_bond = np.mod(
-            abs(difference_to_total_bond), (len(nominator_df) - zero_predictions))
+            abs(difference_to_total_bond),
+            (len(nominator_df) - zero_predictions),
+        )
         if not mod_difference_to_total_bond:
-            if int(len(nominator_df)-zero_predictions) == 0:
+            if int(len(nominator_df) - zero_predictions) == 0:
                 print()
 
-            prediction_sum_difference = int(np.divide(difference_to_total_bond, int(len(nominator_df)-zero_predictions)))
+            prediction_sum_difference = int(
+                np.divide(
+                    difference_to_total_bond,
+                    int(len(nominator_df) - zero_predictions),
+                )
+            )
         else:
             if difference_to_total_bond < 0:
                 mod_difference_to_total_bond = -mod_difference_to_total_bond
-            prediction_sum_difference = int(np.divide(
+            prediction_sum_difference = int(
+                np.divide(
                     (difference_to_total_bond - mod_difference_to_total_bond),
-                    (len(nominator_df) - zero_predictions)))
+                    (len(nominator_df) - zero_predictions),
+                )
+            )
 
             # here we simply add the difference to the first prediction, should not affect the result
-            nominator_df.loc[0, "prediction"] = nominator_df.loc[0, "prediction"].astype("int64") \
-                                                        + mod_difference_to_total_bond
+            nominator_df.loc[0, "prediction"] = (
+                nominator_df.loc[0, "prediction"].astype("int64")
+                + mod_difference_to_total_bond
+            )
 
-        nominator_df.loc[~zero_predictions_mask, ["prediction"]] = nominator_df.loc[~zero_predictions_mask, "prediction"]\
-            .add(prediction_sum_difference
+        nominator_df.loc[
+            ~zero_predictions_mask, ["prediction"]
+        ] = nominator_df.loc[~zero_predictions_mask, "prediction"].add(
+            prediction_sum_difference
         )
-
-
 
         sanity_check = np.subtract(
             total_bond, nominator_df["prediction"].sum()
@@ -91,24 +104,32 @@ class AdjustmentTool:
         return dataframe
 
     def apply_proportional_split_strategy(self, nominator, dataframe):
-        nominator_df = dataframe.loc[dataframe["nominator"] == nominator].reset_index(drop=True)
+        nominator_df = dataframe.loc[
+            dataframe["nominator"] == nominator
+        ].reset_index(drop=True)
         total_bond = nominator_df.loc[0, "total_bond"]
         # if the nominator_df consists of only one row, we simply set the prediction equal to the total bond
-        if len(nominator_df['prediction']) == 1:
+        if len(nominator_df["prediction"]) == 1:
             nominator_df.loc[0, "prediction"] = total_bond
             return nominator_df
 
         # calculate ratio of prediction to sum of predictions
-        nominator_df["ratio"] = nominator_df["prediction"] / nominator_df["prediction"].sum()
+        nominator_df["ratio"] = (
+            nominator_df["prediction"] / nominator_df["prediction"].sum()
+        )
 
         # if the ratio is NaN, we set an even split
         if nominator_df["ratio"].isnull().values.any():
-            nominator_df["ratio"] = nominator_df["ratio"].fillna(1/len(nominator_df))
+            nominator_df["ratio"] = nominator_df["ratio"].fillna(
+                1 / len(nominator_df)
+            )
 
         # multiply ratio with total bond
-        nominator_df["prediction"] = nominator_df["ratio"] * nominator_df["total_bond"]
+        nominator_df["prediction"] = (
+            nominator_df["ratio"] * nominator_df["total_bond"]
+        )
 
-        # round prediction to nearest integer
+        # round prediction to the nearest integer
         nominator_df["prediction"] = nominator_df["prediction"].round()
 
         # ensure that nominator_df["prediction"] is type int64
@@ -120,7 +141,9 @@ class AdjustmentTool:
         )
 
         # add difference to first prediction
-        nominator_df.loc[0, "prediction"] = nominator_df.loc[0, "prediction"] + difference_to_total_bond
+        nominator_df.loc[0, "prediction"] = (
+            nominator_df.loc[0, "prediction"] + difference_to_total_bond
+        )
 
         # sanity check
         sanity_check = np.subtract(
@@ -162,13 +185,13 @@ class AdjustmentTool:
         """
 
         with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
-            results = pool.starmap(self.apply_proportional_split_strategy, [(nominator, dataframe) for nominator in nominators])
+            results = pool.starmap(
+                self.apply_proportional_split_strategy,
+                [(nominator, dataframe) for nominator in nominators],
+            )
         adjusted_dataframe = pd.concat(results)
 
         return adjusted_dataframe
-
-
-
 
     def even_split_strategy(self, dataframe=None):
         """
@@ -197,7 +220,10 @@ class AdjustmentTool:
         counter += 1
 
         with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
-            results = pool.starmap(self.apply_even_split_strategy, [(nominator, dataframe) for nominator in nominators])
+            results = pool.starmap(
+                self.apply_even_split_strategy,
+                [(nominator, dataframe) for nominator in nominators],
+            )
         adjusted_dataframe = pd.concat(results)
 
         return adjusted_dataframe
@@ -240,7 +266,6 @@ class AdjustmentTool:
         dataframe["prediction"] = dataframe["prediction"].abs()
         return dataframe
 
-
     def adjust_cvxpy_strategy(self, dataframe=None):
 
         if dataframe is None:
@@ -255,15 +280,15 @@ class AdjustmentTool:
 
         # Define constraints
         constraints = []
-        for n, g in dataframe.groupby(['nominator']):
+        for n, g in dataframe.groupby(["nominator"]):
             idx = g.index
-            target = g['total_bond'].iloc[0]
+            target = g["total_bond"].iloc[0]
             constraints.append(cp.sum(pred[idx]) == target)
 
         # constraints.append(cp.sum(pred) == cp.sum(data['target']))
 
         # Define objective
-        objective = cp.Minimize(cp.norm(pred - dataframe['prediction']))
+        objective = cp.Minimize(cp.norm(pred - dataframe["prediction"]))
 
         print(cp.installed_solvers())
         # Solve optimization problem
@@ -271,12 +296,15 @@ class AdjustmentTool:
         problem.solve(solver="MOSEK", verbose=True)
 
         # Get optimized predictions
-        dataframe['optimized_prediction'] = pred.value
+        dataframe["optimized_prediction"] = pred.value
         return dataframe
+
 
 if __name__ == "__main__":
     print("Number of cpu : ", multiprocessing.cpu_count())
 
-    df = pd.read_csv("../../data_collection/data/model_2/df_bond_distribution_testing_0.csv")
+    df = pd.read_csv(
+        "../../data_collection/data/model_2/df_bond_distribution_testing_0.csv"
+    )
     adjustment_tool = AdjustmentTool(df)
     adjustment_tool.even_split_strategy()
