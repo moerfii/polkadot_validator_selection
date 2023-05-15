@@ -67,9 +67,27 @@ class ScoringUtility:
 
 
 if __name__ == "__main__":
+    import pandas as pd
+    dataframe = pd.read_csv("../data/model_2/990_max_min_stake.csv")
+
+    with open("../data/stored_solutions_data/990_stored_solution.json", "r") as jsonfile:
+        snapshot_data = json.load(jsonfile)
+
+    # print score of stored solution
+    score = snapshot_data["raw_solution"]["score"]
+    print(f"score of stored solution: {score}")
+
+    # print mean of dataframe
+    # print minimuum stake of dataframe
+    print(dataframe.head())
+    #drop the first column
+    dataframe = dataframe.drop(dataframe.columns[0], axis=1)
+    minimum = dataframe.sum(axis=0).min()
+    print(f"minimum stake of dataframe: {minimum}")
 
 
 
+    """
     scorer = ScoringUtility()
     dirs = sorted(os.listdir("../data/calculated_solutions_data/"))
     scores1 = []
@@ -88,3 +106,4 @@ if __name__ == "__main__":
         print(index)
         print(scorer.is_score1_better_than_score2(value, scores2[index]))
     print()
+    """

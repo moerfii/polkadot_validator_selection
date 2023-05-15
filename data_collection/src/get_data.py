@@ -261,10 +261,6 @@ class StakingSnapshot:
 
 if __name__ == "__main__":
 
-
-
-
-
     snapshot = StakingSnapshot()
     snapshot.create_substrate_connection(config_path="./config.json")
     snapshot.set_block_number(9771970)

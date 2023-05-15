@@ -469,6 +469,7 @@ def get_model_2_data(maxbatchsize=12, req_dirs=None):
     ) = prepare_preprocess_distribution_data(req_dirs)
 
     eras = partition_into_batches(eras, maxbatchsize)
+    eras = eras[::-1]
     for index, sub_eras in enumerate(eras):
         df = preprocess_distribution_data(
             sub_eras, snapshots, assignments, snap_path, solution_path, winners
@@ -480,13 +481,49 @@ def get_model_2_data(maxbatchsize=12, req_dirs=None):
         break
     print("done!")
 
+def get_ensemble_model_2_data(eras):
+    """
+    Load model 2 data, iterate over eras and update the target column with the solution proposed by the solver
+    :param req_dirs:
+    :return:
+    """
+    for era in eras:
+        print(era)
+        # load data
+        dataframe = pd.read_csv(f"./data/model_2/{era}_voter_preferences.csv")
+        # set index to first column
+        dataframe = dataframe.set_index(dataframe.columns[0])
+        dataframe = dataframe.stack().reset_index()
+        dataframe.rename(columns={"Unnamed: 0": "nominator", "level_1": "validator", 0: "proportional_bond"}, inplace=True)
+        # remove rows that have a value below 0.5
+        solution_dataframe = pd.read_csv(f"./data/model_2/{era}_max_min_stake.csv")
+        solution_dataframe = solution_dataframe.drop(columns=["Unnamed: 0"])
+        solution_dataframe = solution_dataframe.stack().reset_index()
+        solution_dataframe.rename(columns={0: "solution_bond"}, inplace=True)
+        total_dataframe = pd.concat([dataframe, solution_dataframe], axis=1)
+        total_dataframe = total_dataframe.drop(columns=["level_0", "level_1"])
+        # remove rows that have a value below 0.5
+        total_dataframe = total_dataframe[total_dataframe["proportional_bond"] > 0.5]
+
+        # group by nominator and get the count of rows to add to new column "nominator_count"
+        total_dataframe["nominator_count"] = total_dataframe.groupby("nominator")["nominator"].transform("count")
+
+        # save dataframe to csv
+        total_dataframe.to_csv(f"./data/ensemble_model/{era}_voter_preferences.csv")
+
+
+
+
+
 
 def main():
     # issue: have to provide file with blocknumbers prior to execution
     snapshot, path, req_dirs, args = setup()
-    snapshot.create_substrate_connection(path)
-    get_model_1_data(args, snapshot, req_dirs, path)
-    #get_model_2_data(maxbatchsize=4, req_dirs=req_dirs)
+    #snapshot.create_substrate_connection(path)
+    #get_model_1_data(args, snapshot, req_dirs, path)
+    #get_model_2_data(maxbatchsize=13, req_dirs=req_dirs)
+    get_ensemble_model_2_data([985, 986, 987, 988, 989, 990, 991, 992, 993, 994])
+
 
 
 if __name__ == "__main__":

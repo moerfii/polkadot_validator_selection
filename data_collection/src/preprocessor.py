@@ -1,3 +1,5 @@
+import time
+
 import pandas as pd
 import json
 
@@ -113,8 +115,22 @@ class Preprocessor:
             solution, processed_dict, previous_processed_dicts
         )
 
-    def update_values(self):
-        pass
+    def change_target_values(self, processed_snapshot, solver_solution, era):
+        """
+        This function changes the target values in the processed_snapshot according to the solver_solution.
+        :param processed_snapshot:
+        :param solver_solution:
+        :return:
+        """
+
+        # convert matrix to series
+        solver_solution = solver_solution.stack()
+        solver_solution = solver_solution[solver_solution >= 1]
+
+
+
+
+        return processed_snapshot
 
     @staticmethod
     def process_solution_data(

@@ -1,9 +1,7 @@
 import json
-
 import numpy as np
-import cvxpy as cp
 import pandas as pd
-import scipy as sp
+from pulp import LpProblem, LpMaximize, LpMinimize, LpVariable, lpSum, value
 from sklearn import preprocessing
 
 
@@ -47,52 +45,64 @@ def solve_validator_selection(snapshot, winners):
     # previous distribution
     prior_to_optimisation = voter_preferences.sum(axis=0)
 
-    non_zero_mask = voter_preferences != 0
-     # create the variables to be optimised, it should be in the shape of the matrix
-    x = cp.Variable(voter_preferences.shape, nonneg=True)
-
-    # create the constraints
-    # the values cannot be negative
-    # the sum of each row must remain the same as defined in the matrix
-    # only 297 validators columns can have a non-zero sum
-    constraints = [
-        cp.sum(x, axis=1) == voter_preferences.sum(axis=1),
-        x[~non_zero_mask] == 0,
-    ]
-
-    # create the objective function
-    # the objective function is to maximise the minimum sum of the columns
-    objective = cp.Maximize(cp.min(cp.sum(x, axis=0)))
+    zero_mask = voter_preferences == 0
+    # create the variables to be optimised, it should be in the shape of the matrix
+    x = LpVariable.dicts("x", ((i, j) for i in range(len(nominator_names)) for j in range(len(validator_names))),
+                         lowBound=0, cat="Integer")
 
     # create the problem
-    problem = cp.Problem(objective, constraints)
+    prob = LpProblem("Validator_Selection", LpMaximize)
+
+    # add the objective function, which is to maximise the minimum sum of the individual columns
+    # create the objective function
+    # the objective function is to maximise the minimum sum of the columns
+    min_col_sums = [lpSum([x[i, j] for i in range(voter_preferences.shape[0])]) for j in range(voter_preferences.shape[1])]
+    prob += lpSum(min_col_sums)
+    print(prob)
+
+
+
+    # the sum of each row in voter_preferences must remain
+    for i in range(len(nominator_names)):
+        prob += lpSum([x[(i, j)] for j in range(len(validator_names))]) == voter_preferences[i, :].sum()
+
+
+    # add constraint that the values defined in the zero_mask must remain zero
+    for i in range(len(nominator_names)):
+        for j in range(len(validator_names)):
+            if zero_mask[i, j]:
+                prob += x[(i, j)] == 0
+
+    # add constraint that the non-zero values must be bigger or equal to zero
+    for i in range(len(nominator_names)):
+        for j in range(len(validator_names)):
+            if not zero_mask[i, j]:
+                prob += x[(i, j)] >= 0
 
     # solve the problem
-    problem.solve(verbose=True, solver=cp.SCIP, max_iters=10000)
+    prob.solve()
 
 
-
-    posterior_to_optimisation = (x.value).sum(axis=0)
+    posterior_to_optimisation = np.array(
+        [x[(i, j)].varValue for i in range(len(nominator_names)) for j in range(len(validator_names))]).reshape(
+        (len(nominator_names), len(validator_names)))
 
     # print the results
-    print("The optimal value is", problem.value)
-    print("A solution x is")
-    print(x.value)
-    dataframe = x.value
-    pd.DataFrame(x.value / scaler).to_csv("../data/model_2/591_max_min_stake.csv")
-    print("A dual solution corresponding to the inequality constraints is")
-    print(constraints[0].dual_value)
+    print("Status:", LpProblem.status[prob.status])
+    print("Objective:", value(prob.objective))
+    print("Optimal Solution:")
+
 
 
 if __name__ == "__main__":
 
-    with open("../data_collection/data/snapshot_data/994_snapshot.json", "r") as f:
+    with open("../data/snapshot_data/994_snapshot.json", "r") as f:
         snapshot = json.load(f)
 
-    with open("../data_collection/data/calculated_solutions_data/994_winners.json", "r") as f:
+    with open("../data/calculated_solutions_data/994_winners.json", "r") as f:
         winners = json.load(f)
 
-    """snapshot = {
+    snapshot = {
         "voters": [
             ["voter1", 100, ["candidate1", "candidate2", "candidate3", "candidate4"]],
             ["voter2", 50, ["candidate2", "candidate3"]],
@@ -108,6 +118,6 @@ if __name__ == "__main__":
         ["candidate3", 0.2],
         ["candidate4", 0.1],
         ["candidate5", 0.1],
-    ]"""
+    ]
 
     solve_validator_selection(snapshot, winners)
