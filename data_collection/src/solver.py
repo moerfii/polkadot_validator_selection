@@ -7,6 +7,28 @@ import scipy as sp
 from sklearn import preprocessing
 
 
+def mean(x):
+    return cp.sum(x) / x.size
+
+
+def variance(X:cp.Variable, mode='unbiased'):
+    if mode == 'unbiased':
+        scale = X.size - 1
+    elif mode == 'mle':
+        scale = X.size
+    else:
+        raise ValueError('unknown mode: ' + str(mode))
+    return cp.sum_squares(X - mean(X)) / scale
+
+
+def maximise_min(x):
+    return cp.Maximize(cp.min(cp.sum(x, axis=0)))
+
+
+def minimise_variance(x):
+    return cp.Minimize(variance(cp.sum(x, axis=0)))
+
+
 def solve_validator_selection(snapshot, winners, era):
     print(f"Starting era {era}")
     """
@@ -47,9 +69,11 @@ def solve_validator_selection(snapshot, winners, era):
                     validator_mapping[validator] = validator_index
                     validator_index += 1
             except KeyError:
-                print(f"validator: {validator} is not in available targets")
+                # print(f"validator: {validator} is not in available targets")
                 pass
 
+
+    """
     voter_preferences = voter_preferences[
         ~np.all(voter_preferences == 0, axis=1)
     ]
@@ -61,17 +85,9 @@ def solve_validator_selection(snapshot, winners, era):
     voter_preferences = voter_preferences.rename(index=nominator_mapping)
     # save voter preferences to json
     voter_preferences.to_csv(f"../data/model_2/{era}_voter_preferences.csv")
-
-    """  #
-    save mappings to json
-    with open(f"../data/model_2/{era}_nominator_mapping.json", "w") as jsonfile:
-        json.dump(nominator_mapping, jsonfile)
-    rev_validator_mapping = {v: k for k, v in validator_mapping.items()}
-    with open(f"../data/model_2/{era}_validator_mapping.json", "w") as jsonfile:
-        json.dump(rev_validator_mapping, jsonfile)
-        
     """
-    """    # drop rows with all zeros
+
+    # drop rows with all zeros
     voter_preferences = voter_preferences[
         ~np.all(voter_preferences == 0, axis=1)
     ]
@@ -98,7 +114,9 @@ def solve_validator_selection(snapshot, winners, era):
 
     # create the objective function
     # the objective function is to maximise the minimum sum of the columns
-    objective = cp.Maximize(cp.min(cp.sum(x, axis=0)))
+    #objective = cp.Maximize(cp.min(cp.sum(x, axis=0)))
+    #objective = maximise_min(x)
+    objective = minimise_variance(x)
 
     # create the problem
     problem = cp.Problem(objective, constraints)
@@ -106,19 +124,25 @@ def solve_validator_selection(snapshot, winners, era):
     # solve the problem
     problem.solve(solver=cp.SCS, verbose=True, max_iters=5000)
 
+    # print variance of voter preferences
+    print(f"Variance of voter preferences: {np.var((voter_preferences /scaler).sum(axis=0))}")
+    print(f"Variance of optimised solution: {np.var((x.value / scaler).sum(axis=0))}")
 
     # print the results
     print("The optimal value is", problem.value)
     dataframe = x.value / scaler
-    pd.DataFrame(dataframe).to_csv(f"../data/model_2/{era}_max_min_stake.csv")
-    print(f"Finished era {era}")"""
+    pd.DataFrame(dataframe).to_csv(f"../data/model_2/{era}_min_var_stake.csv")
+    print(f"Finished era {era}")
 
 
 if __name__ == "__main__":
+    # max min stake
     # 986 inaccurate, reached max iterations
     # 990 inaccurate, reached max iterations
     # 991 inaccurate, reached max iterations
     # 993 inaccurate, reached max iterations
+    # min var stake
+
     eras = [985, 986, 987, 988, 989, 990, 991, 992, 993, 994]
     
     for era in eras:
@@ -130,8 +154,10 @@ if __name__ == "__main__":
 
         solve_validator_selection(snapshot, winners, era)
 
+
     """
-    dataframe = pd.read_csv("../data/model_2/1_max_min_stake.csv", index_col=0)
+
+    #dataframe = pd.read_csv("../data/model_2/1_max_min_stake.csv", index_col=0)
     snapshot = {
         "voters": [
             ["voter1", 100, ["candidate1", "candidate2", "candidate3", "candidate4"]],
