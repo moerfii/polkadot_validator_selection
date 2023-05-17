@@ -5,11 +5,27 @@ import cvxpy as cp
 import pandas as pd
 import scipy as sp
 from sklearn import preprocessing
+from scipy.sparse import csr_matrix
+
+
+def minimise_diagonal_variance(x):
+    n = x.shape[1]  # number of columns
+    covariances = cp.diag(cp.matmul(cp.transpose(x), x)) - cp.square(cp.sum(x, axis=0)) / n
+    return cp.Minimize(cp.sum(covariances))
+
+def minimise_mad(x):
+    return cp.Minimize(mad(cp.sum(x, axis=0)))
+
+def minimise_var(x):
+    return cp.Minimize(variance(cp.sum(x, axis=0)))
+
+def mad(X):
+    median = mean(X)
+    return cp.sum(cp.abs(X - median)) / X.size
 
 
 def mean(x):
     return cp.sum(x) / x.size
-
 
 def variance(X:cp.Variable, mode='unbiased'):
     if mode == 'unbiased':
@@ -25,8 +41,7 @@ def maximise_min(x):
     return cp.Maximize(cp.min(cp.sum(x, axis=0)))
 
 
-def minimise_variance(x):
-    return cp.Minimize(variance(cp.sum(x, axis=0)))
+
 
 
 def solve_validator_selection(snapshot, winners, era):
@@ -92,6 +107,9 @@ def solve_validator_selection(snapshot, winners, era):
         ~np.all(voter_preferences == 0, axis=1)
     ]
 
+
+    #voter_preferences = csr_matrix(voter_preferences)
+
     # previous distribution
     prior_to_optimisation = voter_preferences.sum(axis=0)
 
@@ -116,13 +134,16 @@ def solve_validator_selection(snapshot, winners, era):
     # the objective function is to maximise the minimum sum of the columns
     #objective = cp.Maximize(cp.min(cp.sum(x, axis=0)))
     #objective = maximise_min(x)
-    objective = minimise_variance(x)
+    #covariance_matrix = np.cov(voter_preferences.T)
+
+    # new objective function is to minimise the variance of the sum of the columns
+    objective = minimise_var(x)
 
     # create the problem
     problem = cp.Problem(objective, constraints)
 
-    # solve the problem
-    problem.solve(solver=cp.SCS, verbose=True, max_iters=5000)
+    # solve the problem # SCS for max min stake, ECOS for min var stake
+    problem.solve(solver=cp.SCS, verbose=True, max_iters=5000, )
 
     # print variance of voter preferences
     print(f"Variance of voter preferences: {np.var((voter_preferences /scaler).sum(axis=0))}")
@@ -154,9 +175,7 @@ if __name__ == "__main__":
 
         solve_validator_selection(snapshot, winners, era)
 
-
     """
-
     #dataframe = pd.read_csv("../data/model_2/1_max_min_stake.csv", index_col=0)
     snapshot = {
         "voters": [
