@@ -1,5 +1,7 @@
 import argparse
 import pickle
+
+import numpy as np
 import optuna
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import GroupShuffleSplit
@@ -13,6 +15,7 @@ import pandas as pd
 from src.score import ScoringTool
 from src.adjustment import AdjustmentTool
 from sklearn.compose import make_column_transformer
+from sklearn.metrics import mean_squared_error
 
 
 class Model:
@@ -32,7 +35,7 @@ class Model:
 
     def objective(self, trial):
         model_type = trial.suggest_categorical(
-            "regressor", ["ridge", "lasso", "randomforest", "gradientboosting"]
+            "regressor", ["ridge", "lasso"] # , "randomforest", "gradientboosting"
         )
         if model_type == "randomforest":
             self.model = RandomForestRegressor(
@@ -54,20 +57,24 @@ class Model:
 
     def objective_model_accuracy(self, trial):
         self.objective(trial)
-        evaluation = self.evaluation_selection(args.eval)
+        scaler = MinMaxScaler()
+        self.X_train = scaler.fit_transform(self.X_train)
+        self.X_test = scaler.transform(self.X_test)
+
         return cross_val_score(
             self.model,
             self.X_train,
             self.y_train,
             cv=KFold(n_splits=10, shuffle=True, random_state=42),
-            scoring=evaluation,
+            scoring="neg_root_mean_squared_error",
         ).mean()
 
     def objective_score_boosting(self, trial):
         self.objective(trial)
         return self.cross_validate()
 
-    def adjust(self, predicted_dataframe):
+    @staticmethod
+    def adjust(predicted_dataframe):
         """
         adjust predictions to 100%
         :param predicted_dataframe:
@@ -79,6 +86,7 @@ class Model:
         )
         return adjusted_predicted_dataframe
 
+
     @staticmethod
     def score(adjusted_predicted_dataframe):
         scorer = ScoringTool()
@@ -88,6 +96,23 @@ class Model:
             )
         )
         return scorer.score_solution(predicted_dataframe["prediction"])
+
+    def divide_target_by_total_bond(self):
+        """
+        divide target by total bond
+        :return:
+        """
+        self.total_bond = self.dataframe["total_bond"]
+        self.y = self.y / self.total_bond
+
+    def multiply_predictions_by_total_bond(self, predictions):
+        """
+        multiply predictions by total bond
+        :return:
+        """
+        predictions = predictions['prediction']
+        predictions = predictions * self.total_bond
+        return predictions
 
     def preprocess_data(self):
         """
@@ -181,7 +206,7 @@ class Model:
             self.model = LinearRegression()
         elif model_type == "random_forest":
             self.model = RandomForestRegressor()
-        elif model_type == "gradientboosting":
+        elif model_type == "gradient_boosting":
             self.model = GradientBoostingRegressor()
         elif model_type == "ridge":
             self.model = Ridge()
@@ -208,6 +233,7 @@ class Model:
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
     dataframe = pd.read_csv(
@@ -219,30 +245,135 @@ if __name__ == "__main__":
         "nominator",
         "validator",
         "proportional_bond",
-        "total_bond",
-        "prev_min_stake",
-        "prev_sum_stake",
-        "prev_variance_stake",
-        "era",
-        "0",
-        "1",
-        "2",
-        "3",
-        "4",
-        "5",
-        "6",
-        "7",
-        "8",
-        "9",
-        "10",
-        "11",
-        "12",
-        "13",
-        "14",
+        "era"
     ]
     model = Model(dataframe, "solution_bond", features)
+    model.divide_target_by_total_bond()
+    model.split_data(test_era=994)
     study = optuna.create_study(
         direction="minimize", storage="sqlite:///db.sqlite3"
     )
-    study.optimize(model.objective_score_boosting, n_trials=100)
+    study.optimize(model.objective_model_accuracy, n_trials=100)
     print(f"Best value: {study.best_value} (params: {study.best_params})")
+    """
+
+    from sklearn.linear_model import QuantileRegressor
+
+    dataframe = pd.read_csv(
+        "../../data_collection/data/ensemble_model/total_voter_preferences.csv"
+    )
+
+    dataframe.drop(["Unnamed: 0"], axis=1, inplace=True)
+    features = [
+        "nominator",
+        "validator",
+        "proportional_bond",
+        "era"
+    ]
+    X = dataframe.loc[:, features]
+    y = dataframe.loc[:, "solution_bond"]
+    X_train = X[X["era"] != 994].drop(["era", "nominator", "validator"], axis=1)
+    y_train = y[X["era"] != 994]
+    X_test = X[X["era"] == 994].drop(["era", "nominator", "validator"], axis=1)
+    y_test = y[X["era"] == 994]
+    scaler = MinMaxScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    # reduce X_train rows to 10000
+    X_train = X_train[:10000]
+    y_train = y_train[:10000]
+
+    model = QuantileRegressor(solver="highs")
+    model.fit(X_train, y_train)
+    predicted_dataframe = pd.concat(
+        [X[X["era"] == 994], y[X["era"] == 994]], axis=1
+    )
+    predicted_dataframe["prediction"] = model.predict(X_test)
+    accuracy = mean_squared_error(model.predict(X_test), y_test)
+    print(accuracy)
+    """
+
+    """
+    dataframe2 = pd.read_csv("../../data_collection/data/model_2/df_bond_distribution_testing_0.csv")
+    dataframe2.drop(["Unnamed: 0"], axis=1, inplace=True)
+    # divide solution_bond by total_bond
+    dataframe2["solution_bond"] = dataframe2["solution_bond"] / dataframe2["total_bond"]
+    features = [
+        "nominator",
+        "validator",
+        "proportional_bond",
+        "total_bond",
+        "era"
+    ]
+    X = dataframe2.loc[:, features]
+    y = dataframe2.loc[:, "solution_bond"]
+    X_train = X[X["era"] != 994].drop(["era", "nominator", "validator"], axis=1)
+    y_train = y[X["era"] != 994]
+    X_test = X[X["era"] == 994].drop(["era", "nominator", "validator"], axis=1)
+    y_test = y[X["era"] == 994]
+    scaler = MinMaxScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    model2 = GradientBoostingRegressor()
+    model2.fit(X_train, y_train)
+    predicted_dataframe = pd.concat(
+        [X[X["era"] == 994], y[X["era"] == 994]], axis=1
+    )
+    predicted_dataframe["prediction"] = model2.predict(X_test)
+    accuracy = mean_squared_error(model2.predict(X_test), y_test)
+    print(accuracy)
+    # multiply prediction by total_bond
+    predicted_dataframe["prediction"] = predicted_dataframe["prediction"] * dataframe2["total_bond"]
+    adjusted_predicted_dataframe = Model.adjust(predicted_dataframe)
+    score = Model.score(adjusted_predicted_dataframe)
+
+
+
+    from sklearn.ensemble import VotingRegressor
+    votingregressor = VotingRegressor(estimators=[("model1", model), ("model2", model2)])
+    votingregressor.fit(X_train, y_train)
+    predicted_dataframe = pd.concat(
+        [X[X["era"] == 994], y[X["era"] == 994]], axis=1
+    )
+    predicted_dataframe["prediction"] = votingregressor.predict(X_test)
+    accuracy = mean_squared_error(votingregressor.predict(X_test), y_test)
+    print(f"accuracy: {accuracy}")
+    print()
+
+    """
+    """
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import statsmodels.api as sm
+    from statsmodels.formula.api import ols
+
+    # reading the csv file
+    dataframe = pd.read_csv(
+        "../../data_collection/data/ensemble_model/total_voter_preferences.csv"
+    )
+
+    # fit simple linear regression model
+    linear_model = ols('solution_bond ~ proportional_bond + nominator_count',
+                       data=dataframe).fit()
+
+    # display model summary
+    print(linear_model.summary())
+
+    # modify figure size
+    fig = plt.figure(figsize=(14, 8))
+
+    # creating regression plots
+    fig = sm.graphics.plot_regress_exog(linear_model,
+                                        'proportional_bond',
+                                        fig=fig)
+
+    plt.show()
+    """
+
+
+
+
+

@@ -36,7 +36,9 @@ def subscription_handler(account_info_obj, update_nr, subscription_id):
 
 if __name__ == "__main__":
     snapshot = StakingSnapshot()
-    substrate = snapshot.create_substrate_connection(config_path="../config.json")
+    substrate = snapshot.create_substrate_connection(
+        config_path="../config.json"
+    )
     result = substrate.query(
         "ElectionProviderMultiPhase",
         "Snapshot",

@@ -25,7 +25,9 @@ def solve_validator_selection(snapshot, winners):
     # Create matrix of voter preferences
     voter_preferences = np.zeros((len(nominator_names), len(validator_names)))
     for row in voters:
-        length_active_validators = sum([1 if validator in validator_names else 0 for validator in row[2]])
+        length_active_validators = sum(
+            [1 if validator in validator_names else 0 for validator in row[2]]
+        )
         if length_active_validators == 0:
             continue
         proportional_bond = row[1] / length_active_validators
@@ -47,8 +49,16 @@ def solve_validator_selection(snapshot, winners):
 
     zero_mask = voter_preferences == 0
     # create the variables to be optimised, it should be in the shape of the matrix
-    x = LpVariable.dicts("x", ((i, j) for i in range(len(nominator_names)) for j in range(len(validator_names))),
-                         lowBound=0, cat="Integer")
+    x = LpVariable.dicts(
+        "x",
+        (
+            (i, j)
+            for i in range(len(nominator_names))
+            for j in range(len(validator_names))
+        ),
+        lowBound=0,
+        cat="Integer",
+    )
 
     # create the problem
     prob = LpProblem("Validator_Selection", LpMaximize)
@@ -56,16 +66,19 @@ def solve_validator_selection(snapshot, winners):
     # add the objective function, which is to maximise the minimum sum of the individual columns
     # create the objective function
     # the objective function is to maximise the minimum sum of the columns
-    min_col_sums = [lpSum([x[i, j] for i in range(voter_preferences.shape[0])]) for j in range(voter_preferences.shape[1])]
+    min_col_sums = [
+        lpSum([x[i, j] for i in range(voter_preferences.shape[0])])
+        for j in range(voter_preferences.shape[1])
+    ]
     prob += lpSum(min_col_sums)
     print(prob)
 
-
-
     # the sum of each row in voter_preferences must remain
     for i in range(len(nominator_names)):
-        prob += lpSum([x[(i, j)] for j in range(len(validator_names))]) == voter_preferences[i, :].sum()
-
+        prob += (
+            lpSum([x[(i, j)] for j in range(len(validator_names))])
+            == voter_preferences[i, :].sum()
+        )
 
     # add constraint that the values defined in the zero_mask must remain zero
     for i in range(len(nominator_names)):
@@ -82,16 +95,18 @@ def solve_validator_selection(snapshot, winners):
     # solve the problem
     prob.solve()
 
-
     posterior_to_optimisation = np.array(
-        [x[(i, j)].varValue for i in range(len(nominator_names)) for j in range(len(validator_names))]).reshape(
-        (len(nominator_names), len(validator_names)))
+        [
+            x[(i, j)].varValue
+            for i in range(len(nominator_names))
+            for j in range(len(validator_names))
+        ]
+    ).reshape((len(nominator_names), len(validator_names)))
 
     # print the results
     print("Status:", LpProblem.status[prob.status])
     print("Objective:", value(prob.objective))
     print("Optimal Solution:")
-
 
 
 if __name__ == "__main__":
@@ -104,7 +119,11 @@ if __name__ == "__main__":
 
     snapshot = {
         "voters": [
-            ["voter1", 100, ["candidate1", "candidate2", "candidate3", "candidate4"]],
+            [
+                "voter1",
+                100,
+                ["candidate1", "candidate2", "candidate3", "candidate4"],
+            ],
             ["voter2", 50, ["candidate2", "candidate3"]],
             ["voter3", 200, ["candidate4", "candidate5"]],
             ["voter4", 150, ["candidate1", "candidate5"]],

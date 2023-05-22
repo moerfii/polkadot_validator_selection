@@ -1,5 +1,4 @@
 import json
-import os
 import ssl
 from substrateinterface import SubstrateInterface
 from collections import OrderedDict
@@ -7,7 +6,7 @@ import subprocess
 from src.utils import progress_of_loop
 
 
-class StakingSnapshot:
+class NodeQuery:
     """
     Creates Snapshot at block_number.
     If none exists it calls various storage queries to generate custom snapshot.
@@ -17,7 +16,7 @@ class StakingSnapshot:
         self.substrate = None
         self.block_hash = None
         self.block_number = None
-        self.snapshot = None
+        self.config_path = None
         self.era = None
         self.weird_accounts = [
             "1LMT8pQSCetUTQ6Pz1oMZrT1iyBBu6pYgo5C639NEF9utRu",
@@ -30,10 +29,10 @@ class StakingSnapshot:
         ]
         self.current_nominator_max = 22500
 
-    def create_substrate_connection(self, config_path):
-        if config_path is None:
+    def create_substrate_connection(self):
+        if self.config_path is None:
             raise UserWarning("Must provide valid config json")
-        with open(config_path, "r") as f:
+        with open(self.config_path, "r") as f:
             node_config = json.loads(f.read())["node"]
         sslopt = {"sslopt": {"cert_reqs": ssl.CERT_NONE}}
         substrate = SubstrateInterface(
@@ -43,15 +42,18 @@ class StakingSnapshot:
             ws_options=sslopt,
         )
         self.substrate = substrate
-        return substrate
+
+    def set_config_path(self, config_path):
+        self.config_path = config_path
 
     def set_block_number(self, block_number):
         self.block_number = block_number
-        self.block_hash = self.get_blockhash_from_blocknumber(self.block_number)
-        self.era = str(self.get_era()["index"])
 
     def set_era(self, era):
-        self.era = str(era)
+        self.era = era
+
+    def set_block_hash(self, block_hash):
+        self.block_hash = block_hash
 
     def query(self, module, storage_function, parameters, block_hash):
         return self.substrate.query(
@@ -70,12 +72,12 @@ class StakingSnapshot:
             # not sure what value makes sense, this worked so far.
         )
 
-    def get_validator_exposure(self, era):
+    def get_validator_exposure(self):
         result = self.query_map(
             module="Staking",
             storage_function="ErasStakers",
             parameters=[
-                era,
+                self.era,
             ],
             block_hash=self.block_hash,
         )
@@ -84,16 +86,12 @@ class StakingSnapshot:
             exposure_dict[row[0].value] = row[1].value
         return exposure_dict
 
-    def get_era(self, block_hash=None):
-        if self.block_hash is None:
-            block_hash = block_hash
-        else:
-            block_hash = self.block_hash
+    def get_era(self):
         return self.query(
             module="Staking",
             storage_function="ActiveEra",
             parameters=[],
-            block_hash=block_hash,
+            block_hash=self.block_hash,
         )
 
     def get_blockhash_from_blocknumber(self, block_number):
@@ -184,7 +182,9 @@ class StakingSnapshot:
         )
 
     def calculate_optimal_solution(self, path_to_snapshot, iterations="10"):
-        path_to_snapshot_file = path_to_snapshot + str(self.era) + "_snapshot.json"
+        path_to_snapshot_file = (
+            path_to_snapshot + str(self.era) + "_snapshot.json"
+        )
         result = subprocess.run(
             [
                 "../hackingtime/target/debug/sequential_phragmen_custom",
@@ -210,12 +210,16 @@ class StakingSnapshot:
     def write_to_json(self, name, data_to_save, storage_path):
         file_path = storage_path + str(self.era) + name
         with open(file_path, "w", encoding="utf-8") as jsonfile:
-            jsonfile.write(json.dumps(data_to_save, ensure_ascii=False, indent=4))
+            jsonfile.write(
+                json.dumps(data_to_save, ensure_ascii=False, indent=4)
+            )
             jsonfile.close()
 
     def get_historical_snapshot(self):
         targets = self.get_targets()
-        voter_pointers_dict = self.__transform_to_ordereddict(self.get_voterlist_bags())
+        voter_pointers_dict = self.__transform_to_ordereddict(
+            self.get_voterlist_bags()
+        )
         full_voterlist = []
         bagscounter = 0
         for bag in voter_pointers_dict:
@@ -240,7 +244,9 @@ class StakingSnapshot:
             progress_of_loop(counter, full_voterlist, "Nominators")
             nominator = []
             bond = self.get_specific_nominator_exposure(voter)
-            specific_nominator_targets = self.get_specific_nominator_vote(voter)
+            specific_nominator_targets = self.get_specific_nominator_vote(
+                voter
+            )
             nominator.append(voter)
             nominator.append(bond)
             nominator.append(specific_nominator_targets)
@@ -261,8 +267,9 @@ class StakingSnapshot:
 
 if __name__ == "__main__":
 
-    snapshot = StakingSnapshot()
-    snapshot.create_substrate_connection(config_path="./config.json")
+    snapshot = NodeQuery()
+    snapshot.set_config_path("./config.json")
+    snapshot.create_substrate_connection()
     snapshot.set_block_number(9771970)
     set1 = snapshot.query(
         module="Staking",

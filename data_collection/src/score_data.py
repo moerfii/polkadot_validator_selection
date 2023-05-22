@@ -45,17 +45,23 @@ class ScoringUtility:
             print("Bad solution stored")
             return True
         # compare min stake: goal is to maximise: if calculated is worse return False
-        print(f"storedmin: {scores2_array[0]}, calcmin: {int(scores1_array[0])}")
+        print(
+            f"storedmin: {scores2_array[0]}, calcmin: {int(scores1_array[0])}"
+        )
         if scores2_array[0] > int(scores1_array[0]):
             return False
 
         # compare sum stakes: goal is to maximise: if calculated is worse return False
-        print(f"storedsum: {scores2_array[1]}, calcsum: {int(scores1_array[1])}")
+        print(
+            f"storedsum: {scores2_array[1]}, calcsum: {int(scores1_array[1])}"
+        )
         if scores2_array[1] > int(scores1_array[1]):
             return False
 
         # compare variance of stakes: goal is to minimise: if calculated is worse return False
-        print(f"storedvar: {scores2_array[2]}, calcvar: {int(scores1_array[2])}")
+        print(
+            f"storedvar: {scores2_array[2]}, calcvar: {int(scores1_array[2])}"
+        )
         if scores2_array[2] < int(scores1_array[2]):
             return False
         return True
@@ -68,9 +74,12 @@ class ScoringUtility:
 
 if __name__ == "__main__":
     import pandas as pd
+
     dataframe = pd.read_csv("../data/model_2/990_max_min_stake.csv")
 
-    with open("../data/stored_solutions_data/990_stored_solution.json", "r") as jsonfile:
+    with open(
+        "../data/stored_solutions_data/990_stored_solution.json", "r"
+    ) as jsonfile:
         snapshot_data = json.load(jsonfile)
 
     # print score of stored solution
@@ -80,12 +89,10 @@ if __name__ == "__main__":
     # print mean of dataframe
     # print minimuum stake of dataframe
     print(dataframe.head())
-    #drop the first column
+    # drop the first column
     dataframe = dataframe.drop(dataframe.columns[0], axis=1)
     minimum = dataframe.sum(axis=0).min()
     print(f"minimum stake of dataframe: {minimum}")
-
-
 
     """
     scorer = ScoringUtility()

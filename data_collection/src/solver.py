@@ -10,14 +10,20 @@ from scipy.sparse import csr_matrix
 
 def minimise_diagonal_variance(x):
     n = x.shape[1]  # number of columns
-    covariances = cp.diag(cp.matmul(cp.transpose(x), x)) - cp.square(cp.sum(x, axis=0)) / n
+    covariances = (
+        cp.diag(cp.matmul(cp.transpose(x), x))
+        - cp.square(cp.sum(x, axis=0)) / n
+    )
     return cp.Minimize(cp.sum(covariances))
+
 
 def minimise_mad(x):
     return cp.Minimize(mad(cp.sum(x, axis=0)))
 
+
 def minimise_var(x):
     return cp.Minimize(variance(cp.sum(x, axis=0)))
+
 
 def mad(X):
     median = mean(X)
@@ -27,21 +33,19 @@ def mad(X):
 def mean(x):
     return cp.sum(x) / x.size
 
-def variance(X:cp.Variable, mode='unbiased'):
-    if mode == 'unbiased':
+
+def variance(X: cp.Variable, mode="unbiased"):
+    if mode == "unbiased":
         scale = X.size - 1
-    elif mode == 'mle':
+    elif mode == "mle":
         scale = X.size
     else:
-        raise ValueError('unknown mode: ' + str(mode))
+        raise ValueError("unknown mode: " + str(mode))
     return cp.sum_squares(X - mean(X)) / scale
 
 
 def maximise_min(x):
     return cp.Maximize(cp.min(cp.sum(x, axis=0)))
-
-
-
 
 
 def solve_validator_selection(snapshot, winners, era):
@@ -69,7 +73,9 @@ def solve_validator_selection(snapshot, winners, era):
     # Create matrix of voter preferences
     voter_preferences = np.zeros((len(nominator_names), len(validator_names)))
     for row in voters:
-        length_active_validators = sum([1 if validator in validator_names else 0 for validator in row[2]])
+        length_active_validators = sum(
+            [1 if validator in validator_names else 0 for validator in row[2]]
+        )
         if length_active_validators == 0:
             continue
         nominator_mapping[nominator_index] = row[0]
@@ -86,7 +92,6 @@ def solve_validator_selection(snapshot, winners, era):
             except KeyError:
                 # print(f"validator: {validator} is not in available targets")
                 pass
-
 
     """
     voter_preferences = voter_preferences[
@@ -107,18 +112,17 @@ def solve_validator_selection(snapshot, winners, era):
         ~np.all(voter_preferences == 0, axis=1)
     ]
 
-
-    #voter_preferences = csr_matrix(voter_preferences)
+    # voter_preferences = csr_matrix(voter_preferences)
 
     # previous distribution
     prior_to_optimisation = voter_preferences.sum(axis=0)
 
     non_zero_mask = voter_preferences != 0
 
-    scaler = 1/voter_preferences.mean()
+    scaler = 1 / voter_preferences.mean()
     voter_preferences = voter_preferences * scaler
 
-     # create the variables to be optimised, it should be in the shape of the matrix
+    # create the variables to be optimised, it should be in the shape of the matrix
     x = cp.Variable(voter_preferences.shape, nonneg=True, name="x")
 
     # create the constraints
@@ -127,14 +131,14 @@ def solve_validator_selection(snapshot, winners, era):
     # only 297 validators columns can have a non-zero sum
     constraints = [
         cp.sum(x, axis=1) == voter_preferences.sum(axis=1),
-        x[~non_zero_mask] == 0
+        x[~non_zero_mask] == 0,
     ]
 
     # create the objective function
     # the objective function is to maximise the minimum sum of the columns
-    #objective = cp.Maximize(cp.min(cp.sum(x, axis=0)))
-    #objective = maximise_min(x)
-    #covariance_matrix = np.cov(voter_preferences.T)
+    # objective = cp.Maximize(cp.min(cp.sum(x, axis=0)))
+    # objective = maximise_min(x)
+    # covariance_matrix = np.cov(voter_preferences.T)
 
     # new objective function is to minimise the variance of the sum of the columns
     objective = minimise_var(x)
@@ -143,11 +147,19 @@ def solve_validator_selection(snapshot, winners, era):
     problem = cp.Problem(objective, constraints)
 
     # solve the problem # SCS for max min stake, ECOS for min var stake
-    problem.solve(solver=cp.SCS, verbose=True, max_iters=5000, )
+    problem.solve(
+        solver=cp.SCS,
+        verbose=True,
+        max_iters=5000,
+    )
 
     # print variance of voter preferences
-    print(f"Variance of voter preferences: {np.var((voter_preferences /scaler).sum(axis=0))}")
-    print(f"Variance of optimised solution: {np.var((x.value / scaler).sum(axis=0))}")
+    print(
+        f"Variance of voter preferences: {np.var((voter_preferences /scaler).sum(axis=0))}"
+    )
+    print(
+        f"Variance of optimised solution: {np.var((x.value / scaler).sum(axis=0))}"
+    )
 
     # print the results
     print("The optimal value is", problem.value)
@@ -165,12 +177,14 @@ if __name__ == "__main__":
     # min var stake
 
     eras = [985, 986, 987, 988, 989, 990, 991, 992, 993, 994]
-    
+
     for era in eras:
         with open(f"../data/snapshot_data/{era}_snapshot.json", "r") as f:
             snapshot = json.load(f)
 
-        with open(f"../data/calculated_solutions_data/{era}_winners.json", "r") as f:
+        with open(
+            f"../data/calculated_solutions_data/{era}_winners.json", "r"
+        ) as f:
             winners = json.load(f)
 
         solve_validator_selection(snapshot, winners, era)

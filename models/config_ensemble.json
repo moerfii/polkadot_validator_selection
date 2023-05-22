@@ -1,9 +1,9 @@
 {
-"model": "random_forest",
-  "train": "../data_collection/data/model_2/processed_data_904.csv",
+"model": "ridge",
+  "train": "../data_collection/data/ensemble_model/total_voter_preferences.csv",
   "test": "../data_collection/data/model_2/df_bond_distribution_testing_1.csv",
   "compare": "../data_collection/data/stored_solutions_data/",
-"era": "903",
+"era": "994",
   "plot": null,
   "save": null,
   "target": "solution_bond",

@@ -130,7 +130,7 @@ class AdjustmentTool:
         )
 
         # round prediction to the nearest integer
-        nominator_df["prediction"] = nominator_df["prediction"].round()
+        nominator_df["prediction"] = np.floor(nominator_df["prediction"])
 
         # ensure that nominator_df["prediction"] is type int64
         nominator_df["prediction"] = nominator_df["prediction"].astype("int64")
@@ -170,6 +170,8 @@ class AdjustmentTool:
         if dataframe is None:
             raise ValueError("dataframe is None")
 
+
+
         dataframe["prediction"] = dataframe["prediction"].astype(int)
         dataframe.reset_index(drop=True, inplace=True)
         nominators = dataframe["nominator"].unique()
@@ -192,6 +194,32 @@ class AdjustmentTool:
         adjusted_dataframe = pd.concat(results)
 
         return adjusted_dataframe
+
+    def add_removed_rows(self):
+        """
+        add rows that were removed from the training data
+        :return: dataframe with added rows
+        """
+        era = self.dataframe["era"].max()
+        path = f"../data_collection/data/model_2/removed_data_{era}.csv"
+        removed_dataframe = pd.read_csv(path)
+        removed_dataframe = removed_dataframe.loc[removed_dataframe["era"] == era]
+        self.dataframe = pd.concat([self.dataframe, removed_dataframe])
+        self.dataframe.reset_index(drop=True, inplace=True)
+
+    def insert_predictions_removed_rows(self):
+        """
+        insert predictions for rows that were removed from the training data. It does this by grouping by nominator and
+        summing up the predictions. Then it compares the sum of the predictions with the total bond and sets the missing
+        prediction to the difference. Rows with only one validator are set to the total bond.
+        :return:
+        """
+
+        difference = self.dataframe.groupby("nominator")['total_bond'].mean() - self.dataframe.groupby("nominator")['prediction'].sum()
+        self.dataframe.loc[self.dataframe['prediction'].isnull(), 'prediction'] = self.dataframe['nominator'].map(difference)
+        return self.dataframe
+
+
 
     def even_split_strategy(self, dataframe=None):
         """

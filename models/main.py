@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from src.adjustment import AdjustmentTool
 from src.score import ScoringTool, ScoringUtility
 from src.model import Model
+from sklearn.metrics import mean_squared_error
 
 
 def prepare(path=None, target_column="solution_bond", features=None):
@@ -28,8 +29,11 @@ def adjust(predicted_dataframe):
     adjust predictions to 100%
     :return: adjusted dataframe
     """
-    adj = AdjustmentTool()
+    adj = AdjustmentTool(predicted_dataframe)
+    #adj.add_removed_rows()
+    #predicted_dataframe = adj.insert_predictions_removed_rows()
     return adj.proportional_split_strategy(predicted_dataframe)
+
 
 
 def score(adjusted_predicted_dataframe):
@@ -83,6 +87,8 @@ def compare(score_of_prediction, era, path):
             "r",
         ) as jsonfile:
             score_of_stored = json.load(jsonfile)["raw_solution"]["score"]
+            if isinstance(score_of_stored, dict):
+                score_of_stored = list(score_of_stored.values())
     except FileNotFoundError:
         print("No stored solution found")
         score_of_stored = [0, 0, 0]
@@ -107,6 +113,7 @@ def main(args):
         model = Model.load_trained_model(args.model)
     else:
         model = prepare(args.train, args.target, args.features)
+        model.divide_target_by_total_bond()
         model.model_selection(args.model)
         model.split_data(args.era)
         model.scale_data()
@@ -118,10 +125,18 @@ def main(args):
 
     predicted_dataframe = pd.concat([model.X[model.X["era"] == args.era], model.y[model.X["era"] == args.era]], axis=1)
     predicted_dataframe["prediction"] = model.model.predict(model.X_test)
+    error = mean_squared_error(model.model.predict(model.X_test), model.y_test, squared=False)
+    normalized_error = error / (predicted_dataframe.loc[:,"prediction"].max() - predicted_dataframe.loc[:,"prediction"].min())
+    print(f"normalized error: {normalized_error}")
+    predicted_dataframe["prediction"] = model.multiply_predictions_by_total_bond(predicted_dataframe)
     predicted_dataframe["prediction"] = predicted_dataframe[
         "prediction"
     ].astype(int)
     print("predictions made")
+
+
+
+
 
     # adjust predictions to 100%
     adjusted_predicted_dataframe = adjust(predicted_dataframe)
@@ -129,6 +144,9 @@ def main(args):
 
     # score predictions
     score_of_prediction = score(adjusted_predicted_dataframe)
+    score_to_beat = 17894446348501168
+                    18070084713109629
+    score_we_have = adjusted_predicted_dataframe.groupby('validator')['prediction'].sum().min()
 
     result, score_of_prediction, score_of_calculated = compare(
         score_of_prediction, args.era, args.compare
