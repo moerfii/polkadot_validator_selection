@@ -10,6 +10,7 @@ from src.model import Model
 from sklearn.metrics import mean_squared_error
 
 
+
 def prepare(path=None, target_column="solution_bond", features=None):
     """
     prepare data for training
@@ -117,6 +118,7 @@ def main(args):
         model.model_selection(args.model)
         model.split_data(args.era)
         model.scale_data()
+        model.feature_selection()
         model.model.fit(model.X_train, model.y_train)
         print(f"model {args.model} trained")
 
@@ -135,8 +137,7 @@ def main(args):
     print("predictions made")
 
 
-
-
+    #predicted_dataframe.to_csv(f"../data_collection/data/model_2/predictions_{args.era}.csv")
 
     # adjust predictions to 100%
     adjusted_predicted_dataframe = adjust(predicted_dataframe)
@@ -144,8 +145,6 @@ def main(args):
 
     # score predictions
     score_of_prediction = score(adjusted_predicted_dataframe)
-    score_to_beat = 17894446348501168
-                    18070084713109629
     score_we_have = adjusted_predicted_dataframe.groupby('validator')['prediction'].sum().min()
 
     result, score_of_prediction, score_of_calculated = compare(

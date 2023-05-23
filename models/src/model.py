@@ -11,11 +11,14 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import Ridge, Lasso
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import MinMaxScaler
+from lightgbm.sklearn import LGBMRegressor
 import pandas as pd
 from src.score import ScoringTool
 from src.adjustment import AdjustmentTool
 from sklearn.compose import make_column_transformer
 from sklearn.metrics import mean_squared_error
+from xgboost import XGBRegressor
+from sklearn.feature_selection import SelectKBest, f_regression
 
 
 class Model:
@@ -35,7 +38,7 @@ class Model:
 
     def objective(self, trial):
         model_type = trial.suggest_categorical(
-            "regressor", ["ridge", "lasso"] # , "randomforest", "gradientboosting"
+            "regressor", ["lgbm", "xgboost"] # , "randomforest", "gradientboosting"
         )
         if model_type == "randomforest":
             self.model = RandomForestRegressor(
@@ -54,6 +57,10 @@ class Model:
             self.model = Ridge(alpha=trial.suggest_float("alpha", 0.01, 1.0))
         elif model_type == "lasso":
             self.model = Lasso(alpha=trial.suggest_float("alpha", 0.01, 1.0))
+        elif model_type == "lgbm":
+            self.model = LGBMRegressor(n_estimators=trial.suggest_int("n_estimators", 100, 1000), max_depth=trial.suggest_int("max_depth", 3, 10), learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5), random_state=42)
+        elif model_type == "xgboost":
+            self.model = XGBRegressor(n_estimators=trial.suggest_int("n_estimators", 100, 1000), max_depth=trial.suggest_int("max_depth", 3, 10), learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5), random_state=42)
 
     def objective_model_accuracy(self, trial):
         self.objective(trial)
@@ -96,6 +103,16 @@ class Model:
             )
         )
         return scorer.score_solution(predicted_dataframe["prediction"])
+
+    def feature_selection(self):
+        """
+        feature selection
+        :return:
+        """
+        selector = SelectKBest(f_regression, k=10)
+        selector.fit(self.X_train, self.y_train)
+        self.X_train = selector.transform(self.X_train)
+        self.X_test = selector.transform(self.X_test)
 
     def divide_target_by_total_bond(self):
         """
@@ -212,6 +229,10 @@ class Model:
             self.model = Ridge()
         elif model_type == "lasso":
             self.model = Lasso()
+        elif model_type == "lgbm":
+            self.model = LGBMRegressor()
+        elif model_type == "xgboost":
+            self.model = XGBRegressor()
         else:
             raise ValueError("model type not found")
 
@@ -237,21 +258,28 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
     dataframe = pd.read_csv(
-        "../../data_collection/data/model_2/df_bond_distribution_testing_0.csv"
+        "../../data_collection/data/model_2/processed_data_expected_904.csv"
     )
-    dataframe.drop(["Unnamed: 0"], axis=1, inplace=True)
 
     features = [
         "nominator",
         "validator",
         "proportional_bond",
-        "era"
+        "total_bond",
+        "overall_total_bond",
+        "overall_proportional_bond",
+        "prev_min_stake",
+        "prev_sum_stake",
+        "prev_variance_stake",
+        "era",
+        "validator_count",
+        "number_of_validators"
     ]
     model = Model(dataframe, "solution_bond", features)
     model.divide_target_by_total_bond()
-    model.split_data(test_era=994)
+    model.split_data(test_era=904)
     study = optuna.create_study(
-        direction="minimize", storage="sqlite:///db.sqlite3"
+        direction="maximize", storage="sqlite:///db.sqlite3"
     )
     study.optimize(model.objective_model_accuracy, n_trials=100)
     print(f"Best value: {study.best_value} (params: {study.best_params})")

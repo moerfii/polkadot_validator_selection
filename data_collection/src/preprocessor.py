@@ -363,7 +363,9 @@ class Preprocessor:
         self.add_column_previous_scores()
         self.add_overall_proportional_bond()
         self.add_overall_total_bond()
-        self.group_bonds_by_validator()
+        #self.update_solution_bond()
+        #self.group_bonds_by_validator()
+        #self.add_expected_sum_stake()
         #self.remove_rows_leave_one_validator_out()
         self.dataframes.append(self.dataframe)
         #self.removed_dataframes.append(self.removed_dataframe)
@@ -391,11 +393,11 @@ class Preprocessor:
 
     def group_bonds_by_validator(self):
         """
-        This function groups the bonds by validator and sums them up.
+        This function groups the bonds by validator and sums them up. Add nominator and validator columns
         :return:
         """
 
-        self.dataframe = self.dataframe.groupby(["validator"])[['proportional_bond', 'total_bond', 'validator_count', 'overall_proportional_bond', 'solution_bond']].sum()
+        self.dataframe = self.dataframe.groupby(["validator"])[['proportional_bond', 'total_bond', 'validator_count', 'overall_proportional_bond', 'solution_bond']].sum().reset_index()
         self.dataframe['era'] = self.era
     def remove_rows_leave_one_validator_out(self):
         """
@@ -440,6 +442,16 @@ class Preprocessor:
         """
         self.dataframe["overall_total_bond"] = self.dataframe.groupby("validator")["total_bond"].transform("sum")
 
+    def add_expected_sum_stake(self):
+        """
+        This function adds a column "expected_sum_stake" which is derived by predicting the total solution stake of a
+        validator in the current era.
+        :param df:
+        :return:
+        """
+        prediction = pd.read_csv(f"./data/model_2/predictions_{self.era}.csv")
+        self.dataframe['expected_sum_stake'] = self.dataframe['validator'].map(prediction.set_index('validator')['prediction'])
+
 
     def save_dataframe(self):
         """
@@ -447,8 +459,36 @@ class Preprocessor:
         :param df:
         :return:
         """
-        self.dataframe.to_csv(f"{self.output_path}/processed_data_total_{self.era}.csv", index=False)
+        self.dataframe.to_csv(f"{self.output_path}/processed_data_expected_{self.era}.csv", index=False)
         #self.removed_dataframe.to_csv(f"{self.output_path}/removed_data_{self.era}.csv", index=False)
+
+
+    def update_solution_bond(self):
+        """
+        This function updates the solution bond to the distribution calculated in the linear programming approach
+        :return:
+        """
+        calculated_solution = pd.read_csv(f"./data/model_2/{self.era}_max_min_stake.csv")
+        calculated_solution.drop("Unnamed: 0", axis=1, inplace=True)
+        voter_preferences = pd.read_csv(f"./data/model_2/{self.era}_voter_preferences.csv")
+        voter_preferences = voter_preferences.set_index(voter_preferences.columns[0])
+        voter_preferences = voter_preferences.stack().reset_index()
+        voter_preferences.rename(
+            columns={
+                "Unnamed: 0": "nominator",
+                "level_1": "validator",
+                0: "proportional_bond",
+            },
+            inplace=True,
+        )
+        calculated_solution = calculated_solution.stack().reset_index()
+        calculated_solution.rename(columns={0: "solution_bond"}, inplace=True)
+        total_dataframe = pd.concat([voter_preferences, calculated_solution], axis=1)
+        total_dataframe = total_dataframe.drop(columns=["level_0", "level_1"])
+        total_dataframe = total_dataframe[
+            total_dataframe["proportional_bond"] >= 1
+        ]
+        self.dataframe['solution_bond'] = self.dataframe['validator'].map(total_dataframe.set_index(['nominator', 'validator'])['solution_bond'])
 
 if __name__ == "__main__":
     preprocessor = Preprocessor()

@@ -1,13 +1,13 @@
 {
-"model": "random_forest",
-  "train": "../data_collection/data/model_2/processed_data_904.csv",
+"model": "lgbm",
+  "train": "../data_collection/data/model_2/processed_data_expected_904.csv",
   "test": "../data_collection/data/model_2/df_bond_distribution_testing_1.csv",
   "compare": "../data_collection/data/stored_solutions_data/",
 "era": "903",
   "plot": null,
   "save": null,
   "target": "solution_bond",
-  "features": [
+    "features": [
     "nominator",
     "validator",
     "proportional_bond",

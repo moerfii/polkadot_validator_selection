@@ -8,12 +8,20 @@
   "save": null,
   "target": "solution_bond",
   "features": [
+    "proportional_bond",
+    "total_bond,validator_count",
+    "overall_proportional_bond",
+    "solution_bond",
+    "era"
+  ],
+    "features": [
     "nominator",
     "validator",
     "proportional_bond",
     "total_bond",
     "overall_total_bond",
     "overall_proportional_bond",
+      "expected_sum_stake",
     "prev_min_stake",
     "prev_sum_stake",
     "prev_variance_stake",
