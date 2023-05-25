@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import json
 
-from data_collection.src.utils import progress_of_loop
+from src.utils import progress_of_loop
 
 
 class Preprocessor:
@@ -363,8 +363,10 @@ class Preprocessor:
         self.add_column_previous_scores()
         self.add_overall_proportional_bond()
         self.add_overall_total_bond()
+        self.add_average_proportional_bond()
+        self.add_average_total_bond()
         #self.update_solution_bond()
-        #self.group_bonds_by_validator()
+        self.group_bonds_by_validator()
         #self.add_expected_sum_stake()
         #self.remove_rows_leave_one_validator_out()
         self.dataframes.append(self.dataframe)
@@ -373,6 +375,21 @@ class Preprocessor:
     def concatenate_dataframes(self):
         self.dataframe = pd.concat(self.dataframes)
         #self.removed_dataframe = pd.concat(self.removed_dataframes)
+
+    def add_average_proportional_bond(self):
+        """
+        This function adds the average proportional bond to the dataframe. It is calculated by dividing the total proportional
+        bond by the validator_frequency_current_era
+        :return:
+        """
+        self.dataframe["average_proportional_bond"] = self.dataframe["overall_proportional_bond"] / self.dataframe["validator_frequency_current_era"]
+
+    def add_average_total_bond(self):
+        """
+        This function adds the average total bond to the dataframe. It is calculated by dividing the total_bond by the validator_frequency_current_era
+        :return:
+        """
+        self.dataframe["average_total_bond"] = self.dataframe["overall_total_bond"] / self.dataframe["validator_frequency_current_era"]
 
 
     def datatype_casting(self):
@@ -397,7 +414,7 @@ class Preprocessor:
         :return:
         """
 
-        self.dataframe = self.dataframe.groupby(["validator"])[['proportional_bond', 'total_bond', 'validator_count', 'overall_proportional_bond', 'solution_bond']].sum().reset_index()
+        self.dataframe = self.dataframe.groupby(["validator"])[['proportional_bond', 'total_bond', 'validator_frequency_current_era', 'overall_proportional_bond', 'solution_bond']].sum().reset_index()
         self.dataframe['era'] = self.era
     def remove_rows_leave_one_validator_out(self):
         """
@@ -421,7 +438,7 @@ class Preprocessor:
 
         value_counts = self.dataframe.loc[:, 'validator'].value_counts()
         for validator in value_counts.index:
-            self.dataframe.loc[self.dataframe['validator'] == validator, 'validator_count'] = value_counts[validator]
+            self.dataframe.loc[self.dataframe['validator'] == validator, 'validator_frequency_current_era'] = value_counts[validator]
 
 
     def add_overall_proportional_bond(self):
@@ -459,7 +476,7 @@ class Preprocessor:
         :param df:
         :return:
         """
-        self.dataframe.to_csv(f"{self.output_path}/processed_data_expected_{self.era}.csv", index=False)
+        self.dataframe.to_csv(f"{self.output_path}/processed_data_grouped_{self.era}.csv", index=False)
         #self.removed_dataframe.to_csv(f"{self.output_path}/removed_data_{self.era}.csv", index=False)
 
 

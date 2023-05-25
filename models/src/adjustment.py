@@ -331,8 +331,21 @@ class AdjustmentTool:
 if __name__ == "__main__":
     print("Number of cpu : ", multiprocessing.cpu_count())
 
-    df = pd.read_csv(
-        "../../data_collection/data/model_2/df_bond_distribution_testing_0.csv"
-    )
-    adjustment_tool = AdjustmentTool(df)
-    adjustment_tool.even_split_strategy()
+    # nominator, validator, total_bond, prediction, expected_sum_stake
+    example_dataframe = [
+        ["nominator_1", "validator_1", 100, 0, 200],
+        ["nominator_1", "validator_2", 100, 20, 150],
+        ["nominator_1", "validator_3", 100, 50, 50],
+        ["nominator_2", "validator_1", 100, 90, 200],
+        ["nominator_2", "validator_2", 100, 10, 150],
+        ["nominator_2", "validator_3", 100, 0, 50],
+        ["nominator_3", "validator_1", 100, 200, 200],
+        ["nominator_3", "validator_2", 100, 100, 150],
+        ["nominator_3", "validator_3", 100, 50, 50],
+    ]
+    example_dataframe = pd.DataFrame(example_dataframe,
+                                     columns=["nominator", "validator", "total_bond", "prediction",
+                                              "expected_sum_stake"])
+    adjustment_tool = AdjustmentTool(example_dataframe)
+    adjustment_tool.proportional_split_strategy()
+    print(adjustment_tool.dataframe)

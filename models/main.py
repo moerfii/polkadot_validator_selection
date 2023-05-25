@@ -8,6 +8,7 @@ from src.adjustment import AdjustmentTool
 from src.score import ScoringTool, ScoringUtility
 from src.model import Model
 from sklearn.metrics import mean_squared_error
+from sklearn.feature_selection import SelectKBest, f_regression
 
 
 
@@ -30,10 +31,11 @@ def adjust(predicted_dataframe):
     adjust predictions to 100%
     :return: adjusted dataframe
     """
-    adj = AdjustmentTool(predicted_dataframe)
-    #adj.add_removed_rows()
-    #predicted_dataframe = adj.insert_predictions_removed_rows()
+    adj = AdjustmentTool()
     return adj.proportional_split_strategy(predicted_dataframe)
+    print("proportional adjusted")
+    print(predicted_dataframe.groupby('validator')['prediction'].sum().min())
+    return adj.adjusted_dataframe
 
 
 
@@ -108,6 +110,7 @@ def main(args):
     :param era: era to test on
     :return: comparison of scores
     """
+    print(f"era: {args.era}")
     if args.train is None:
         print("Model is not trained")
         # todo: THIS IS INCOMPLETE // must provide X_test via json
@@ -118,7 +121,7 @@ def main(args):
         model.model_selection(args.model)
         model.split_data(args.era)
         model.scale_data()
-        model.feature_selection()
+        #model.feature_selection()
         model.model.fit(model.X_train, model.y_train)
         print(f"model {args.model} trained")
 
@@ -136,16 +139,24 @@ def main(args):
     ].astype(int)
     print("predictions made")
 
+    # pearson correlation
 
-    #predicted_dataframe.to_csv(f"../data_collection/data/model_2/predictions_{args.era}.csv")
+
+
+    predicted_dataframe.to_csv(f"../data_collection/data/model_2/predictions_individual_{args.era}.csv")
 
     # adjust predictions to 100%
     adjusted_predicted_dataframe = adjust(predicted_dataframe)
     print("predictions adjusted")
 
+    adjusted_predicted_dataframe.to_csv(f"../data_collection/data/model_2/adjusted_predictions_individual_{args.era}.csv")
+
     # score predictions
     score_of_prediction = score(adjusted_predicted_dataframe)
     score_we_have = adjusted_predicted_dataframe.groupby('validator')['prediction'].sum().min()
+    score_to_beat = 10480945026317210
+    score_w_mixed = 16323201440023993
+    score_stored  = 18067554990425268
 
     result, score_of_prediction, score_of_calculated = compare(
         score_of_prediction, args.era, args.compare

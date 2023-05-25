@@ -1,5 +1,5 @@
 {
-"model": "lgbm",
+"model": "random_forest",
   "train": "../data_collection/data/model_2/processed_data_expected_904.csv",
   "test": "../data_collection/data/model_2/df_bond_distribution_testing_1.csv",
   "compare": "../data_collection/data/stored_solutions_data/",
@@ -18,7 +18,7 @@
     "prev_sum_stake",
     "prev_variance_stake",
     "era",
-    "validator_count",
+    "validator_frequency_current_era",
     "number_of_validators"
   ]
 }
