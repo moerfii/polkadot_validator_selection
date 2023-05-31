@@ -109,7 +109,7 @@ class Model:
         feature selection
         :return:
         """
-        selector = SelectKBest(f_regression, k=10)
+        selector = SelectKBest(f_regression, k=5)
         selector.fit(self.X_train, self.y_train)
         self.X_train = selector.transform(self.X_train)
         self.X_test = selector.transform(self.X_test)
@@ -148,9 +148,11 @@ class Model:
         self.X_train = self.X[self.X["era"] != test_era].drop(
             drop_columns, axis=1
         )
+        self.X_train = self.X_train.drop(["era", "total_bond", "expected_sum_stake"], axis=1)
         self.X_test = self.X[self.X["era"] == test_era].drop(
             drop_columns, axis=1
         )
+        self.X_test = self.X_test.drop(["era", "total_bond", "expected_sum_stake"], axis=1)
         self.y_train = self.y[self.X["era"] != test_era]
         self.y_test = self.y[self.X["era"] == test_era]
 
@@ -222,17 +224,17 @@ class Model:
         if model_type == "linear":
             self.model = LinearRegression()
         elif model_type == "random_forest":
-            self.model = RandomForestRegressor()
+            self.model = RandomForestRegressor(random_state=42)
         elif model_type == "gradient_boosting":
-            self.model = GradientBoostingRegressor()
+            self.model = GradientBoostingRegressor(random_state=42)
         elif model_type == "ridge":
-            self.model = Ridge()
+            self.model = Ridge(random_state=42)
         elif model_type == "lasso":
-            self.model = Lasso()
+            self.model = Lasso(random_state=42)
         elif model_type == "lgbm":
-            self.model = LGBMRegressor()
+            self.model = LGBMRegressor(random_state=42)
         elif model_type == "xgboost":
-            self.model = XGBRegressor()
+            self.model = XGBRegressor(random_state=42)
         else:
             raise ValueError("model type not found")
 

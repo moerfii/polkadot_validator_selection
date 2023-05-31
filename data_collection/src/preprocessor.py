@@ -6,6 +6,8 @@ import pandas as pd
 import json
 
 from src.utils import progress_of_loop
+import networkx as nx
+import networkit as nk
 
 
 class Preprocessor:
@@ -23,9 +25,9 @@ class Preprocessor:
         self.required_directories = [
             "./data/snapshot_data/",
             "./data/stored_solutions_data/",
-            "./data/calculated_solutions_data/",
+            "./data/calculated_solutions_data/"
         ]
-        self.output_path = "./data/model_2/"
+        self.output_path = "./data/processed_data/"
 
     def load_data(self, era):
         self.era = era
@@ -75,96 +77,64 @@ class Preprocessor:
                 data = json.load(json_file)
                 self.process_solution_data(data)
 
-    @staticmethod
-    def process_snapshot_data(
-            snapshot, era, previous_processed_dicts, solution
-    ):
+
+    def preprocess_model_1_data(self):
         # todo: potentially add commission // era points // elected ratio instead of counter
         """
         place all in Dataframe with columns (ValidatorAddress, TotalBond, ProportionalBond, *[Nominators], NominatorCount,
                                         ElectedCurrentEra, ElectedCounter, selfStake, avgStakePerNominator,)
         :return: Dataframe
         """
-        voters = snapshot["voters"]
-        # targets = snapshot['targets']
-        processed_dict = {}
-        for row in voters:
+        dataframe_list = []
+        for row in self.snapshot_data["voters"]:
             for validator in row[2]:
-                try:
-                    current_values = processed_dict[validator]
+                total_bond = row[1]
+                proportional_bond = row[1] / len(row[2])
+                nominator_count = 1
+                elected_current_era = 0
+                elected_previous_era = 0
+                dataframe_list.append([validator, total_bond, proportional_bond, nominator_count,
+                                       elected_current_era, elected_previous_era])
+        self.dataframe = pd.DataFrame(dataframe_list,
+                                      columns=["validator",
+                                               "overall_total_bond",
+                                               "overall_proportional_bond",
+                                                "nominator_count",
+                                                "elected_current_era",
+                                                "elected_previous_era"])
+        self.merge_validators()
+        self.update_elected_columns()
+        self.dataframe['era'] = self.era
+        self.dataframes.append(self.dataframe)
 
-                    total_bond = current_values[0] + row[1]
-                    proportional_bond = current_values[1] + row[1] / len(
-                        row[2]
-                    )
-                    list_of_nominators = current_values[2]
-                    list_of_nominators.add(row[0])
-                    nominator_count = current_values[3] + 1
-                    elected_current_era = 0  # get with solution
 
-                    elected_previous_era = current_values[4]
-                    elected_counter = current_values[5]
-                    self_stake = 0  # potentially add later/should not give extra information
-                    avg_stake_per_nominator = proportional_bond / len(
-                        list_of_nominators
-                    )  # todo: adapt metric.
-                    era = era
-                    processed_dict[validator] = [
-                        total_bond,
-                        proportional_bond,
-                        list_of_nominators,
-                        nominator_count,
-                        elected_current_era,
-                        elected_previous_era,
-                        elected_counter,
-                        self_stake,
-                        avg_stake_per_nominator,
-                        era,
-                    ]
-                except KeyError:
-                    total_bond = row[1]
-                    proportional_bond = row[1] / len(row[2])
-                    list_of_nominators = set()
-                    list_of_nominators.add(row[0])
-                    nominator_count = 1
-                    elected_current_era = 0
-                    elected_previous_era = 0  # check previous
-                    elected_counter = 0  # check previous
-                    if len(previous_processed_dicts):
-                        for previous_dict in reversed(
-                                previous_processed_dicts
-                        ):
-                            try:
-                                elected_previous_era = previous_dict[
-                                    validator
-                                ][
-                                    4
-                                ]  # es isch ofc da immer 0 will de scheiss ersch nacher processed wird
-                                elected_counter = previous_dict[validator][6]
-                                break
-                            except KeyError:
-                                continue
-                    else:
-                        pass
-                    self_stake = 0
-                    avg_stake_per_nominator = row[1]
-                    era = era
-                    processed_dict[validator] = [
-                        total_bond,
-                        proportional_bond,
-                        list_of_nominators,
-                        nominator_count,
-                        elected_current_era,
-                        elected_previous_era,
-                        elected_counter,
-                        self_stake,
-                        avg_stake_per_nominator,
-                        era,
-                    ]
+    def update_elected_columns(self):
+        """
+        This function updates the elected columns of the dataframe. It checks whether the validator was elected in the
+        current and previous era and updates the elected counter accordingly.
+        :return:
+        """
+        winners = [winner[0] for winner in self.winners_data]
+        previous_winners = [winner[0] for winner in self.previous_winners_data]
+        for index, row in self.dataframe.iterrows():
+            if row["validator"] in winners:
+                self.dataframe.at[index, "elected_current_era"] = 1
+            if row["validator"] in previous_winners:
+                self.dataframe.at[index, "elected_previous_era"] = 1
 
-        return Preprocessor.process_solution_data(
-            solution, processed_dict, previous_processed_dicts
-        )
+    def merge_validators(self):
+        """
+        This function merges the validators in the dataframe. It sums up the total bond and proportional bond and
+        appends the list of unique nominators. It also counts the number of nominators.
+        :return:
+        """
+        self.dataframe = self.dataframe.groupby(["validator"]).agg(
+            {"overall_total_bond": "sum",
+             "overall_proportional_bond": "sum",
+             "nominator_count": "count",
+             "elected_current_era": "sum",
+             "elected_previous_era": "sum"
+             }).reset_index()
 
     def change_target_values(self, processed_snapshot, solver_solution, era):
         """
@@ -180,58 +150,6 @@ class Preprocessor:
 
         return processed_snapshot
 
-    def preprocess_active_set_data(self):
-
-        # process snapshots
-        snap_path = self.required_directories[0]
-        snapshots = sorted(os.listdir(snap_path))
-        snapshots = [snap for snap in snapshots if "mapping" not in snap]
-        solution_path = self.required_directories[2]
-        solutions = sorted(os.listdir(solution_path))
-        solutions = [sol for sol in solutions if "assignments" not in sol]
-        snapshots_list = []
-        snapshot_counter = 0
-        for index, snap in enumerate(snapshots):
-            era = [int(s) for s in snap.split("_") if s.isdigit()][0]
-            snapshot_counter = progress_of_loop(
-                snapshot_counter, snapshots, "Preprocessing Snapshots"
-            )
-            with open(snap_path + snap, "r") as snapjson:
-                snapshot_json = json.load(snapjson)
-            with open(solution_path + solutions[index], "r") as soljson:
-                solution_json = json.load(soljson)
-            snapshots_list.append(
-                self.process_snapshot_data(
-                    snapshot_json, era, snapshots_list, solution_json
-                )
-            )
-        dataframes = []
-        for sub_df in snapshots_list:
-            dataframes.append(pd.DataFrame.from_dict(sub_df, orient="index"))
-        return pd.concat(dataframes)
-
-    @staticmethod
-    def process_solution_data(
-            solution, processed_snapshot_dict, previous_processed_dicts
-    ):
-        # update processed_dict from snapshot data by checking whether validator got elected and increase counter if so.
-        # [total_bond, proportional_bond, list_of_nominators,
-        #  nominator_count, elected_current_era, elected_previous_era,
-        #  elected_counter, self_stake, avg_stake_per_nominator, era]
-        for row in solution:
-            processed_snapshot_dict[row[0]][4] = 1
-            for processed_dict in reversed(previous_processed_dicts):
-                try:
-                    processed_snapshot_dict[row[0]][6] = (
-                            processed_dict[row[0]][6] + 1
-                    )
-                    processed_snapshot_dict[row[0]][5] = processed_dict[
-                        row[0]
-                    ][4]
-                    break
-                except KeyError:
-                    continue
-        return processed_snapshot_dict
 
     @staticmethod
     def return_mapping_from_address_to_index(snapshot):
@@ -365,13 +283,150 @@ class Preprocessor:
         self.add_overall_total_bond()
         self.add_average_proportional_bond()
         self.add_average_total_bond()
+        self.add_indices()
+        self.add_graph_features_nx()
+        #self.add_graph_features()
         #self.update_solution_bond()
-        self.group_bonds_by_validator()
-        #self.add_expected_sum_stake()
+        #self.group_bonds_by_validator()
+        self.add_expected_sum_stake()
+        self.add_probability_of_selection()
         #self.remove_rows_leave_one_validator_out()
         self.dataframes.append(self.dataframe)
         #self.removed_dataframes.append(self.removed_dataframe)
 
+
+    def add_probability_of_selection(self):
+        """
+        This function adds the probability of selection to the dataframe df.
+        :return:
+        """
+        elected_probability_dataframe = pd.read_csv(f"./data/intermediate_results/elected_probability_{self.era}.csv")
+        elected_probability_dataframe = elected_probability_dataframe.loc[:, ["validator", "predictions"]]
+        elected_probability_dataframe.columns = ["validator", "probability_of_selection"]
+        self.dataframe = self.dataframe.merge(elected_probability_dataframe, on="validator", how="left")
+
+
+
+    def add_graph_features(self):
+        """
+        This function creates a graph using networkit from the indices of the nominators and validators. It the calculates several
+        graph features and adds them to the dataframe.
+        :return:
+        """
+        graph = nk.Graph()
+        for index, row in self.dataframe.iterrows():
+            graph.addNodes(row["nominator_index"])
+            graph.addNodes(row["validator_index"])
+            graph.addEdge(row["nominator_index"], row["validator_index"])
+        graph.degree()
+        start = time.time()
+
+
+
+
+    def add_graph_features_nx(self):
+        """
+        This function creates a graph from the indices of the nominators and validators. It the calculates several
+        graph features and adds them to the dataframe.
+        :return:
+        """
+        graph = nx.Graph()
+        graph.add_nodes_from(self.dataframe["nominator_index"].unique(), name="nominator")
+        graph.add_nodes_from(self.dataframe["validator_index"].unique(), name="validator")
+        graph.add_edges_from(self.dataframe[["nominator_index", "validator_index"]].values)
+
+        start = time.time()
+        degree_dict = dict(graph.degree())
+        self.dataframe["nominator_degree"] = self.dataframe["nominator_index"].map(degree_dict)
+        self.dataframe["validator_degree"] = self.dataframe["validator_index"].map(degree_dict)
+        end = time.time()
+        print("time elapsed: ", end - start)
+        print("degree done")
+
+        """
+        start = time.time()
+        clustering_dict = nx.clustering(graph)
+        self.dataframe["nominator_clustering"] = self.dataframe["nominator_index"].map(clustering_dict)
+        self.dataframe["validator_clustering"] = self.dataframe["validator_index"].map(clustering_dict)
+        end = time.time()
+        print("time elapsed: ", end - start)
+        print("clustering done")
+        """
+
+        """
+        start = time.time()
+        betweenness_dict = nx.betweenness_centrality(graph, int(len(graph.nodes)/10))
+        self.dataframe["nominator_betweenness"] = self.dataframe["nominator_index"].map(betweenness_dict)
+        self.dataframe["validator_betweenness"] = self.dataframe["validator_index"].map(betweenness_dict)
+        end = time.time()
+        print("time elapsed: ", end - start)
+        print("betweenness done")
+
+
+        start = time.time()
+        closeness_dict = nx.closeness_centrality(graph)
+        self.dataframe["nominator_closeness"] = self.dataframe["nominator_index"].map(closeness_dict)
+        self.dataframe["validator_closeness"] = self.dataframe["validator_index"].map(closeness_dict)
+        end = time.time()
+        print("time elapsed: ", end - start)
+        print("closeness done")
+        """
+        """
+        start = time.time()
+        eigenvector_dict = nx.eigenvector_centrality(graph)
+        self.dataframe["nominator_eigenvector"] = self.dataframe["nominator_index"].map(eigenvector_dict)
+        self.dataframe["validator_eigenvector"] = self.dataframe["validator_index"].map(eigenvector_dict)
+        end = time.time()
+        print("time elapsed: ", end - start)
+        print("eigenvector done")
+
+        start = time.time()
+        pagerank_dict = nx.pagerank(graph)
+        self.dataframe["nominator_pagerank"] = self.dataframe["nominator_index"].map(pagerank_dict)
+        self.dataframe["validator_pagerank"] = self.dataframe["validator_index"].map(pagerank_dict)
+        end = time.time()
+        print("time elapsed: ", end - start)
+        print("pagerank done")
+
+
+        start = time.time()
+        katz_dict = nx.katz_centrality(graph)
+        self.dataframe["nominator_katz"] = self.dataframe["nominator_index"].map(katz_dict)
+        self.dataframe["validator_katz"] = self.dataframe["validator_index"].map(katz_dict)
+        end = time.time()
+        print("time elapsed: ", end - start)
+        print("katz done")"""
+
+
+
+        #self.dataframe["hubs"] = self.dataframe["nominator_index"].map(nx.hits(graph)[0])
+        #self.dataframe["authorities"] = self.dataframe["nominator_index"].map(nx.hits(graph)[1])
+
+        start = time.time()
+        degree_centrality_dict = nx.centrality.degree_centrality(graph)
+        self.dataframe["nominator_centrality"] = self.dataframe["nominator_index"].map(degree_centrality_dict)
+        self.dataframe["validator_centrality"] = self.dataframe["validator_index"].map(degree_centrality_dict)
+        end = time.time()
+        print("time elapsed: ", end - start)
+        print("degree centrality done")
+
+
+
+    def add_indices(self):
+        """
+        This function sorts the dataframe by nominator total bond and adds indices to the dataframe for nominators and
+        validators.
+        :return:
+        """
+        nominators = self.dataframe.groupby("nominator")["total_bond"].mean().sort_values(ascending=False)
+        nominators = nominators.reset_index()
+        nominators["nominator_index"] = nominators.index
+        self.dataframe['nominator_index'] = self.dataframe['nominator'].map(nominators.set_index('nominator')['nominator_index'])
+        validators = self.dataframe.groupby("validator")["overall_total_bond"].mean().sort_values(ascending=False)
+        validators = validators.reset_index()
+        validators["validator_index"] = validators.index
+        validators["validator_index"] = validators["validator_index"] + len(nominators)
+        self.dataframe['validator_index'] = self.dataframe['validator'].map(validators.set_index('validator')['validator_index'])
     def concatenate_dataframes(self):
         self.dataframe = pd.concat(self.dataframes)
         #self.removed_dataframe = pd.concat(self.removed_dataframes)
@@ -470,13 +525,13 @@ class Preprocessor:
         self.dataframe['expected_sum_stake'] = self.dataframe['validator'].map(prediction.set_index('validator')['prediction'])
 
 
-    def save_dataframe(self):
+    def save_dataframe(self, name):
         """
         This function saves the dataframe to a csv file.
         :param df:
         :return:
         """
-        self.dataframe.to_csv(f"{self.output_path}/processed_data_grouped_{self.era}.csv", index=False)
+        self.dataframe.to_csv(f"{self.output_path}/{name}_{self.era}.csv", index=False)
         #self.removed_dataframe.to_csv(f"{self.output_path}/removed_data_{self.era}.csv", index=False)
 
 

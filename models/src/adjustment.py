@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import multiprocessing
 import cvxpy as cp
@@ -98,20 +100,26 @@ class AdjustmentTool:
         :param dataframe:
         :return: dataframe with no negative predictions
         """
-        for index, row in dataframe.iterrows():
-            if row["prediction"] < 0:
-                dataframe.loc[index, "prediction"] = 0
+
+        dataframe.loc[dataframe["prediction"] < 0, "prediction"] = 0
+
         return dataframe
 
     def apply_proportional_split_strategy(self, nominator, dataframe):
+
+
+
+        dataframe = self.calculate_difference_expected_sum_stake_and_prediction(dataframe)
+
+
         nominator_df = dataframe.loc[
             dataframe["nominator"] == nominator
         ].reset_index(drop=True)
-        total_bond = nominator_df.loc[0, "total_bond"]
+        total_bond = nominator_df['total_bond'].values[0]
         # if the nominator_df consists of only one row, we simply set the prediction equal to the total bond
         if len(nominator_df["prediction"]) == 1:
             nominator_df.loc[0, "prediction"] = total_bond
-            return nominator_df
+            return dataframe, nominator_df
 
         # calculate ratio of prediction to sum of predictions
         nominator_df["ratio"] = (
@@ -123,6 +131,8 @@ class AdjustmentTool:
             nominator_df["ratio"] = nominator_df["ratio"].fillna(
                 1 / len(nominator_df)
             )
+
+        nominator_df = self.adapt_ratio_to_expected_sum_stake(nominator_df)
 
         # multiply ratio with total bond
         nominator_df["prediction"] = (
@@ -154,7 +164,41 @@ class AdjustmentTool:
             print(sanity_check)
             raise ValueError("sanity check failed")
 
+        dataframe.loc[dataframe['nominator'] == nominator, 'prediction'] = nominator_df['prediction'].values
+
+        return dataframe, nominator_df
+
+    def update_prediction_in_dataframe(self, nominator_df, dataframe):
+        """
+        This function updates the prediction in the dataframe
+        :param nominator_df:
+        :param dataframe:
+        :return:
+        """
+        dataframe.loc[dataframe['nominator'] == nominator_df['nominator'].values[0], 'prediction'] = nominator_df['prediction'].values[0]
+        return dataframe
+
+    def adapt_ratio_to_expected_sum_stake(self, nominator_df):
+        """
+        This function adapts the ratio of the prediction to the expected sum stake
+        :param nominator_df: dataframe with columns: nominator, validator, proportional_bond, total_bond, number_of_validators, total_proportional_bond, era, solution_bond, prediction
+        :return: dataframe with adapted ratio
+        """
+
+        # normalize difference
+
+        nominator_df["difference"] = nominator_df["difference"] / nominator_df["difference"].sum()
+        #nominator_df["ratio"] =  nominator_df["ratio"] + nominator_df["difference"]
+        nominator_df['ratio'] = nominator_df[['ratio', 'difference']].max(axis=1)
+        nominator_df["ratio"] = nominator_df["ratio"] / nominator_df["ratio"].sum()
         return nominator_df
+
+    def calculate_difference_expected_sum_stake_and_prediction(self, dataframe):
+
+        difference = dataframe.groupby("validator")['expected_sum_stake'].mean() - dataframe.groupby("validator")['prediction'].sum()
+        difference = difference - difference.min()
+        dataframe["difference"] = dataframe["validator"].map(difference)
+        return dataframe
 
     def proportional_split_strategy(self, dataframe=None):
         """
@@ -178,19 +222,29 @@ class AdjustmentTool:
         counter = 0
 
         dataframe = self.preadjustment(dataframe)
+        print("preadjustment done")
 
-        """
-        # this is the single process version // DEBUGGING only
+
+        """# this is the single process version // DEBUGGING only
+        start = time.time()
+        results = []
         for nominator in nominators:
-            print(nominator)
-            self.apply_proportional_split_strategy(nominator, dataframe)
-        """
+            counter += 1
+            print(f"nominator {counter} of {len(nominators)}")
+            dataframe, nominator_df = self.apply_proportional_split_strategy(nominator, dataframe)
+            results.append(nominator_df)
 
+        end = time.time()
+        print(f"single process version took {end - start} seconds")"""
+
+        # this is the multiprocessing version
         with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
             results = pool.starmap(
                 self.apply_proportional_split_strategy,
                 [(nominator, dataframe) for nominator in nominators],
             )
+        # unpack results
+        results = [result[1] for result in results]
         adjusted_dataframe = pd.concat(results)
 
         return adjusted_dataframe
@@ -333,19 +387,19 @@ if __name__ == "__main__":
 
     # nominator, validator, total_bond, prediction, expected_sum_stake
     example_dataframe = [
-        ["nominator_1", "validator_1", 100, 0, 200],
+        ["nominator_1", "validator_1", 100, 0, 100],
         ["nominator_1", "validator_2", 100, 20, 150],
         ["nominator_1", "validator_3", 100, 50, 50],
-        ["nominator_2", "validator_1", 100, 90, 200],
+        ["nominator_2", "validator_1", 100, 90, 100],
         ["nominator_2", "validator_2", 100, 10, 150],
         ["nominator_2", "validator_3", 100, 0, 50],
-        ["nominator_3", "validator_1", 100, 200, 200],
+        ["nominator_3", "validator_1", 100, 200, 100],
         ["nominator_3", "validator_2", 100, 100, 150],
         ["nominator_3", "validator_3", 100, 50, 50],
     ]
     example_dataframe = pd.DataFrame(example_dataframe,
                                      columns=["nominator", "validator", "total_bond", "prediction",
                                               "expected_sum_stake"])
-    adjustment_tool = AdjustmentTool(example_dataframe)
-    adjustment_tool.proportional_split_strategy()
+    adjustment_tool = AdjustmentTool()
+    adjusted = adjustment_tool.proportional_split_strategy(example_dataframe)
     print(adjustment_tool.dataframe)

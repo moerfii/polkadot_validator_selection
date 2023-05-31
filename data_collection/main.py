@@ -40,6 +40,7 @@ required_directories = [
     "data/snapshot_data/",
     "data/stored_solutions_data/",
     "data/calculated_solutions_data/",
+    "data/processed_data/",
 ]
 
 
@@ -241,30 +242,22 @@ def get_model_1_data(args):
 
 def process_model_1_data(args):
     preprocessor = Preprocessor()
-    df = preprocessor.preprocess_active_set_data()
-    df.rename(
-        columns={
-            0: "total_bond",
-            1: "proportional_bond",
-            2: "list_of_nominators",
-            3: "nominator_count",
-            4: "elected_current_era",
-            5: "elected_previous_era",
-            6: "elected_counter",
-            7: "self_stake",
-            8: "avg_stake_per_nominator",
-            9: "era",
-        },
-        inplace=True,
-    )
-
-    # if args.save is not None:
-    df.to_csv("snapshot_with_solution.csv")
+    progress_counter = 0
+    if len(args.eras) == 1:
+        eras = args.eras
+    else:
+        eras = range(args.eras[0], args.eras[1])
+    for era in eras:
+        progress_counter = progress_of_loop(
+            progress_counter, eras, "Preprocessing Assignments"
+        )
+        preprocessor.load_data(era)
+        preprocessor.preprocess_model_1_data()
+    preprocessor.concatenate_dataframes()
+    preprocessor.save_dataframe(name="model_1_data")
 
 
 def process_model_2_data(args):
-        final_dictionaries = []
-        sub_final_dictionaries = []
         preprocessor = Preprocessor()
         progress_counter = 0
         if len(args.eras) == 1:
@@ -278,8 +271,7 @@ def process_model_2_data(args):
             preprocessor.load_data(era)
             preprocessor.preprocess_model_2_data()
         preprocessor.concatenate_dataframes()
-        preprocessor.save_dataframe()
-            # load data
+        preprocessor.save_dataframe(name="model_2_data")
 
 
 def get_ensemble_model_2_data(eras):
@@ -381,7 +373,7 @@ def setup():
 
 def main(args):
     # get_model_1_data(args)
-    # process_model_1_data(args)
+    #process_model_1_data(args)
     process_model_2_data(args)
     #get_ensemble_model_2_data(args)
 

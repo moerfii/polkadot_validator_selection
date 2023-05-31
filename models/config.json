@@ -1,6 +1,6 @@
 {
-"model": "random_forest",
-  "train": "../data_collection/data/model_2/processed_data_expected_904.csv",
+"model": "xgboost",
+  "train": "../data_collection/data/processed_data/model_2_data_904.csv",
   "test": "../data_collection/data/model_2/df_bond_distribution_testing_1.csv",
   "compare": "../data_collection/data/stored_solutions_data/",
 "era": "903",
@@ -14,11 +14,16 @@
     "total_bond",
     "overall_total_bond",
     "overall_proportional_bond",
-    "prev_min_stake",
-    "prev_sum_stake",
-    "prev_variance_stake",
     "era",
-    "validator_frequency_current_era",
-    "number_of_validators"
+    "number_of_validators",
+      "validator_frequency_current_era",
+      "average_proportional_bond",
+        "average_total_bond",
+      "nominator_index",
+      "validator_index",
+      "nominator_centrality",
+      "validator_centrality",
+      "probability_of_selection",
+      "expected_sum_stake"
   ]
 }

@@ -8,6 +8,7 @@ from src.adjustment import AdjustmentTool
 from src.score import ScoringTool, ScoringUtility
 from src.model import Model
 from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_percentage_error
 from sklearn.feature_selection import SelectKBest, f_regression
 
 
@@ -21,6 +22,7 @@ def prepare(path=None, target_column="solution_bond", features=None):
     dataframe = pd.read_csv(
         path
     )
+    #dataframe['proportional_bond'] = dataframe['proportional_bond'] / dataframe['expected_sum_stake']
     model = Model(dataframe, target_column, features)
 
     return model
@@ -33,9 +35,6 @@ def adjust(predicted_dataframe):
     """
     adj = AdjustmentTool()
     return adj.proportional_split_strategy(predicted_dataframe)
-    print("proportional adjusted")
-    print(predicted_dataframe.groupby('validator')['prediction'].sum().min())
-    return adj.adjusted_dataframe
 
 
 
@@ -103,6 +102,24 @@ def compare(score_of_prediction, era, path):
         score_of_stored,
     )
 
+def log_score(score_of_prediction, era, model, normalized_error):
+    """
+    log the score of the prediction
+    :param score_of_prediction:
+    :param era:
+    """
+    log = {
+        "era": era,
+        "model": model,
+        "score": score_of_prediction,
+        "normalized_error": normalized_error
+    }
+    # write to new file
+    with open(f"{model}_{era}_log.json", "w") as jsonfile:
+        json.dump(log, jsonfile)
+
+
+
 
 def main(args):
     """
@@ -123,7 +140,17 @@ def main(args):
         model.scale_data()
         #model.feature_selection()
         model.model.fit(model.X_train, model.y_train)
-        print(f"model {args.model} trained")
+
+        """
+        # get importance
+        importance = model.model.feature_importances_
+        # summarize feature importance
+        for i, v in enumerate(importance):
+            print('Feature: %0d, Score: %.5f' % (i, v))
+        # plot feature importance
+        plt.bar([x for x in range(len(importance))], importance)
+        plt.show()
+        print(f"model {args.model} trained")"""
 
     if args.save:
         model.save_trained_model()
@@ -143,20 +170,20 @@ def main(args):
 
 
 
-    predicted_dataframe.to_csv(f"../data_collection/data/model_2/predictions_individual_{args.era}.csv")
+    #predicted_dataframe.to_csv(f"../data_collection/data/model_2/predictions_individual_{args.era}.csv")
 
     # adjust predictions to 100%
     adjusted_predicted_dataframe = adjust(predicted_dataframe)
     print("predictions adjusted")
 
-    adjusted_predicted_dataframe.to_csv(f"../data_collection/data/model_2/adjusted_predictions_individual_{args.era}.csv")
+    #adjusted_predicted_dataframe.to_csv(f"../data_collection/data/model_2/adjusted_predictions_individual_{args.era}.csv")
 
     # score predictions
     score_of_prediction = score(adjusted_predicted_dataframe)
-    score_we_have = adjusted_predicted_dataframe.groupby('validator')['prediction'].sum().min()
-    score_to_beat = 10480945026317210
-    score_w_mixed = 16323201440023993
-    score_stored  = 18067554990425268
+
+
+
+    log_score(score_of_prediction, args.era, args.model, normalized_error)
 
     result, score_of_prediction, score_of_calculated = compare(
         score_of_prediction, args.era, args.compare
@@ -197,6 +224,10 @@ def setup():
 
 if __name__ == "__main__":
     parser = setup()
-    main(
-        parser.parse_args()
-    )
+    main(parser.parse_args())
+
+
+
+
+
+
