@@ -6,22 +6,87 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from src.adjustment import AdjustmentTool
 from src.score import ScoringTool, ScoringUtility
+from src.utils import set_era_range
 from src.model import Model
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_percentage_error
 from sklearn.feature_selection import SelectKBest, f_regression
 
 
+def predict_model_1(args):
+    """
+    predict model 1: This model predicts the probability of being selected for the next active set.
+    :return: predicted dataframe
+    """
 
-def prepare(path=None, target_column="solution_bond", features=None):
+    model = prepare(path=args.model_1_path, target_column=args.target_1, features=args.features_1, era=args.era)
+
+    model.model_selection(args.model_1)
+
+    eras = set_era_range(args.era)
+    for era in eras:
+        model.split_data(era)
+        model.scale_data()
+        model.model.fit(model.X_train, model.y_train)
+
+        print(f"Model 1 {era} score: {model.model.score(model.X_test, model.y_test)}")
+        predictions = model.model.predict_proba(model.X_test)
+
+        predicted_dataframe = pd.concat([model.dataframe[model.X["era"] == era], model.y[model.X["era"] == era]], axis=1)
+
+        predicted_dataframe["prediction"] = predictions[:, 1]
+
+        predicted_dataframe.to_csv(args.intermediate_results_path + f"{era}_model_1_predictions.csv", index=False)
+        print(f"Model 1 predictions saved to {args.intermediate_results_path + f'{era}_model_1_predictions.csv'}")
+
+
+def predict_model_2(args):
+    """
+    predict model 2: This model predicts the global distribution of stake.
+    :param args:
+    :return:
+    """
+    model = prepare(path=args.model_2_path + "_grouped", target_column=args.target_2, features=args.features_2, era=args.era)
+    model.model_selection(args.model_2)
+
+    eras = set_era_range(args.era)
+    for era in eras:
+        model.split_data(era)
+        model.scale_data()
+        # model.feature_selection()
+        model.model.fit(model.X_train, model.y_train)
+
+        print(f"Model 2 score: {model.model.score(model.X_test, model.y_test)}")
+        predictions = model.model.predict(model.X_test)
+
+        predicted_dataframe = pd.concat([model.X[model.X["era"] == era], model.y[model.X["era"] == era]], axis=1) #model.dataframe?
+
+        predicted_dataframe["prediction"] = predictions
+
+        predicted_dataframe.to_csv(args.intermediate_results_path + f"{era}_model_2_predictions.csv", index=False)
+        print(f"Model 2 predictions saved to {args.intermediate_results_path + f'{era}_model_2_predictions.csv'}")
+
+
+
+
+
+
+
+
+def prepare(path=None, target_column="solution_bond", features=None, era=None):
     """
     prepare data for training
     :return: model
     """
-    # read training data
-    dataframe = pd.read_csv(
-        path
-    )
+    eras = set_era_range(era)
+
+    dataframes = []
+    for era in eras:
+        tmp_dataframe = pd.read_csv(
+            path + f"_{era}.csv"
+        )
+        dataframes.append(tmp_dataframe)
+    dataframe = pd.concat(dataframes, ignore_index=True)
     #dataframe['proportional_bond'] = dataframe['proportional_bond'] / dataframe['expected_sum_stake']
     model = Model(dataframe, target_column, features)
 

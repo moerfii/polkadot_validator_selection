@@ -8,6 +8,7 @@ from sklearn.model_selection import GroupShuffleSplit
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import Ridge, Lasso
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import MinMaxScaler
@@ -148,11 +149,11 @@ class Model:
         self.X_train = self.X[self.X["era"] != test_era].drop(
             drop_columns, axis=1
         )
-        self.X_train = self.X_train.drop(["era", "total_bond", "expected_sum_stake"], axis=1)
+        self.X_train = self.X_train.drop(["era"], axis=1)
         self.X_test = self.X[self.X["era"] == test_era].drop(
             drop_columns, axis=1
         )
-        self.X_test = self.X_test.drop(["era", "total_bond", "expected_sum_stake"], axis=1)
+        self.X_test = self.X_test.drop(["era"], axis=1)
         self.y_train = self.y[self.X["era"] != test_era]
         self.y_test = self.y[self.X["era"] == test_era]
 
@@ -235,6 +236,8 @@ class Model:
             self.model = LGBMRegressor(random_state=42)
         elif model_type == "xgboost":
             self.model = XGBRegressor(random_state=42)
+        elif model_type == "logistic_regression":
+            self.model = LogisticRegression(random_state=42)
         else:
             raise ValueError("model type not found")
 

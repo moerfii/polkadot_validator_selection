@@ -4,8 +4,6 @@ import time
 import numpy as np
 import pandas as pd
 import json
-
-from src.utils import progress_of_loop
 import networkx as nx
 import networkit as nk
 
@@ -23,11 +21,10 @@ class Preprocessor:
         self.removed_dataframe = None
         self.removed_dataframes = []
         self.required_directories = [
-            "./data/snapshot_data/",
-            "./data/stored_solutions_data/",
-            "./data/calculated_solutions_data/"
+            "./data_collection/data/snapshot_data/",
+            "./data_collection/data/stored_solutions_data/",
+            "./data_collection/data/calculated_solutions_data/"
         ]
-        self.output_path = "./data/processed_data/"
 
     def load_data(self, era):
         self.era = era
@@ -285,14 +282,23 @@ class Preprocessor:
         self.add_average_total_bond()
         self.add_indices()
         self.add_graph_features_nx()
+        self.add_probability_of_selection()
+
         #self.add_graph_features()
         #self.update_solution_bond()
-        #self.group_bonds_by_validator()
-        self.add_expected_sum_stake()
-        self.add_probability_of_selection()
+
+        #self.add_expected_sum_stake()
+
         #self.remove_rows_leave_one_validator_out()
         self.dataframes.append(self.dataframe)
         #self.removed_dataframes.append(self.removed_dataframe)
+
+    def preprocess_model_3_data(self):
+        self.dataframe = pd.read_csv(f"./data_collection/data/processed_data/model_2_data_{self.era}.csv")
+        self.add_expected_sum_stake()
+
+
+
 
 
     def add_probability_of_selection(self):
@@ -300,8 +306,8 @@ class Preprocessor:
         This function adds the probability of selection to the dataframe df.
         :return:
         """
-        elected_probability_dataframe = pd.read_csv(f"./data/intermediate_results/elected_probability_{self.era}.csv")
-        elected_probability_dataframe = elected_probability_dataframe.loc[:, ["validator", "predictions"]]
+        elected_probability_dataframe = pd.read_csv(f"./data_collection/data/intermediate_results/{self.era}_model_1_predictions.csv")
+        elected_probability_dataframe = elected_probability_dataframe.loc[:, ["validator", "prediction"]]
         elected_probability_dataframe.columns = ["validator", "probability_of_selection"]
         self.dataframe = self.dataframe.merge(elected_probability_dataframe, on="validator", how="left")
 
@@ -340,8 +346,8 @@ class Preprocessor:
         self.dataframe["nominator_degree"] = self.dataframe["nominator_index"].map(degree_dict)
         self.dataframe["validator_degree"] = self.dataframe["validator_index"].map(degree_dict)
         end = time.time()
-        print("time elapsed: ", end - start)
-        print("degree done")
+        #print("time elapsed: ", end - start)
+        #print("degree done")
 
         """
         start = time.time()
@@ -407,8 +413,8 @@ class Preprocessor:
         self.dataframe["nominator_centrality"] = self.dataframe["nominator_index"].map(degree_centrality_dict)
         self.dataframe["validator_centrality"] = self.dataframe["validator_index"].map(degree_centrality_dict)
         end = time.time()
-        print("time elapsed: ", end - start)
-        print("degree centrality done")
+        #print("time elapsed: ", end - start)
+        #print("degree centrality done")
 
 
 
@@ -458,6 +464,8 @@ class Preprocessor:
             "proportional_bond": "int64",
             "number_of_validators": "int16",
             "solution_bond": "int64",
+            "validator_frequency_current_era": "int16"
+
         }
 
         dataframe = self.dataframe.astype(dtype=dtypes_dict)
@@ -469,7 +477,16 @@ class Preprocessor:
         :return:
         """
 
-        self.dataframe = self.dataframe.groupby(["validator"])[['proportional_bond', 'total_bond', 'validator_frequency_current_era', 'overall_proportional_bond', 'solution_bond']].sum().reset_index()
+        self.dataframe = self.dataframe.groupby(["validator"])[
+            [
+             'proportional_bond',
+             'total_bond',
+             'validator_frequency_current_era',
+             'overall_proportional_bond',
+                'overall_total_bond',
+             'solution_bond'
+             ]
+        ].sum().reset_index()
         self.dataframe['era'] = self.era
     def remove_rows_leave_one_validator_out(self):
         """
@@ -521,17 +538,18 @@ class Preprocessor:
         :param df:
         :return:
         """
-        prediction = pd.read_csv(f"./data/model_2/predictions_{self.era}.csv")
-        self.dataframe['expected_sum_stake'] = self.dataframe['validator'].map(prediction.set_index('validator')['prediction'])
+        prediction = pd.read_csv(f"./data_collection/data/intermediate_results/{self.era}_model_2_predictions.csv")
+        self.dataframe['expected_sum_stake'] = self.dataframe['validator'].map(
+            prediction.set_index('validator')['prediction'])
 
 
-    def save_dataframe(self, name):
+    def save_dataframe(self, path):
         """
         This function saves the dataframe to a csv file.
         :param df:
         :return:
         """
-        self.dataframe.to_csv(f"{self.output_path}/{name}_{self.era}.csv", index=False)
+        self.dataframe.to_csv(f"{path}_{self.era}.csv", index=False)
         #self.removed_dataframe.to_csv(f"{self.output_path}/removed_data_{self.era}.csv", index=False)
 
 

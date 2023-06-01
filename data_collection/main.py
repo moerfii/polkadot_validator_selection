@@ -2,13 +2,14 @@ import json
 import os
 import numpy as np
 import pandas as pd
-from src.get_data import NodeQuery
-from src.preprocessor import Preprocessor
-from src.utils import (
+from .src.get_data import NodeQuery
+from .src.preprocessor import Preprocessor
+from .src.utils import (
     read_json,
     progress_of_loop,
     read_parquet,
     partition_into_batches,
+    set_era_range
 )
 import argparse
 from pathlib import Path
@@ -132,146 +133,151 @@ def finish_preprocessing(df, eras):
     return subtracted_dataframe.loc[subtracted_dataframe["era"] != eras[0]]
 
 
-def get_model_1_data(args):
-    block_numbers = read_parquet(args.block_numbers)
+def get_model_1_data(args, era):
+    block_numbers = read_parquet(args.block_numbers)  # todo: hookup to database of Florian, get block numbers
     # get_data(snapshot, block_numbers, True, req_dirs)
     block_numbers.sort_values("Era", inplace=True)
+    block_numbers_row = block_numbers.loc[block_numbers["Era"] == era, :]
     snapshot_instance = NodeQuery()
     snapshot_instance.set_config_path(args.config_path)
     snapshot_instance.create_substrate_connection()
     block_number_counter = 0
-    for index, row in block_numbers.iterrows():
-        block_number_counter = progress_of_loop(
-            block_number_counter, block_numbers, "get_data"
-        )
-        snapshot_data = None
-        nominator_mapping = None
-        validator_mapping = None
-        solution_data = None
-        json_winners = None
-        json_assignments = None
+    snapshot_data = None
+    nominator_mapping = None
+    validator_mapping = None
+    solution_data = None
+    json_winners = None
+    json_assignments = None
 
-        snapshot_path = required_directories[0]
-        snapshot_path_file = snapshot_path + row["Era"] + "_snapshot.json"
-        stored_solution_path = required_directories[1]
-        stored_solution_path_file = (
-            stored_solution_path + row["Era"] + "_stored_solution.json"
-        )
-        calculated_solution_path = required_directories[2]
-        calculated_solution_path_file = (
-            calculated_solution_path + row["Era"] + "_winners.json"
-        )
+    snapshot_path = required_directories[0]
+    snapshot_path_file = snapshot_path + block_numbers_row["Era"] + "_snapshot.json"
+    stored_solution_path = required_directories[1]
+    stored_solution_path_file = (
+        stored_solution_path + block_numbers_row["Era"] + "_stored_solution.json"
+    )
+    calculated_solution_path = required_directories[2]
+    calculated_solution_path_file = (
+        calculated_solution_path + block_numbers_row["Era"] + "_winners.json"
+    )
 
-        # check if the era has already been handled, improves speed of system overall.
-        block_number_snapshot = row["SignedPhaseBlock"]
-        block_number_solution = row["SolutionStoredBlock"] + 1
-        try:
-            if not os.path.exists(snapshot_path_file):
-                # acquire snapshot
-                snapshot_instance.set_block_number(block_number_snapshot)
-                snapshot_data = get_snapshot_data(snapshot_instance)
-                (
-                    nominator_mapping,
-                    validator_mapping,
-                ) = Preprocessor().return_mapping_from_address_to_index(
-                    snapshot_data
-                )
+    # check if the era has already been handled, improves speed of system overall.
+    block_number_snapshot = block_numbers_row["SignedPhaseBlock"]
+    block_number_solution = block_numbers_row["SolutionStoredBlock"] + 1
+    try:
+        if not os.path.exists(snapshot_path_file):
+            # acquire snapshot
+            snapshot_instance.set_block_number(block_number_snapshot)
+            snapshot_data = get_snapshot_data(snapshot_instance)
+            (
+                nominator_mapping,
+                validator_mapping,
+            ) = Preprocessor().return_mapping_from_address_to_index(
+                snapshot_data
+            )
 
-            if args.save and snapshot_data is not None:
-                snapshot_instance.write_to_json(
-                    name="_snapshot.json",
-                    data_to_save=snapshot_data,
-                    storage_path=snapshot_path,
-                )
-                snapshot_instance.write_to_json(
-                    name="_snapshot_nominator_mapping.json",
-                    data_to_save=nominator_mapping,
-                    storage_path=snapshot_path,
-                )
-                snapshot_instance.write_to_json(
-                    name="_snapshot_validator_mapping.json",
-                    data_to_save=validator_mapping,
-                    storage_path=snapshot_path,
-                )
+        if args.save and snapshot_data is not None:
+            snapshot_instance.write_to_json(
+                name="_snapshot.json",
+                data_to_save=snapshot_data,
+                storage_path=snapshot_path,
+            )
+            snapshot_instance.write_to_json(
+                name="_snapshot_nominator_mapping.json",
+                data_to_save=nominator_mapping,
+                storage_path=snapshot_path,
+            )
+            snapshot_instance.write_to_json(
+                name="_snapshot_validator_mapping.json",
+                data_to_save=validator_mapping,
+                storage_path=snapshot_path,
+            )
 
-            if not os.path.exists(stored_solution_path_file):
-                # acquire stored solution
-                snapshot_instance.set_block_number(block_number_solution)
-                solution_data = get_solution_data(snapshot_instance)
+        if not os.path.exists(stored_solution_path_file):
+            # acquire stored solution
+            snapshot_instance.set_block_number(block_number_solution)
+            solution_data = get_solution_data(snapshot_instance)
 
-            if args.save and solution_data is not None:
-                snapshot_instance.write_to_json(
-                    name="_stored_solution.json",
-                    data_to_save=solution_data,
-                    storage_path=stored_solution_path,
-                )
+        if args.save and solution_data is not None:
+            snapshot_instance.write_to_json(
+                name="_stored_solution.json",
+                data_to_save=solution_data,
+                storage_path=stored_solution_path,
+            )
 
-            if not os.path.exists(calculated_solution_path_file):
-                print(
-                    "calculating solution for era: ",
-                    row["Era"],
-                    " at block: ",
-                    block_number_snapshot,
-                    "...",
-                )
-                # calculate solution with custom phragmen rust script & only save if its equal or better to the stored one.
-                snapshot_instance.set_block_number(block_number_snapshot)
-                (
-                    json_winners,
-                    json_assignments,
-                ) = snapshot_instance.calculate_optimal_solution(
-                    snapshot_path, iterations="400"
-                )
-                # todo: ScoringUtlity(snapshot_instance.era, json_assignments, snapshot_data).check_correctness_solution()
-            if args.save and json_winners is not None:
-                snapshot_instance.write_to_json(
-                    name="_winners.json",
-                    data_to_save=json_winners,
-                    storage_path=calculated_solution_path,
-                )
-                snapshot_instance.write_to_json(
-                    name="_assignments.json",
-                    data_to_save=json_assignments,
-                    storage_path=calculated_solution_path,
-                )
+        if not os.path.exists(calculated_solution_path_file):
+            print(
+                "calculating solution for era: ",
+                block_numbers_row["Era"],
+                " at block: ",
+                block_number_snapshot,
+                "...",
+            )
+            # calculate solution with custom phragmen rust script & only save if its equal or better to the stored one.
+            snapshot_instance.set_block_number(block_number_snapshot)
+            (
+                json_winners,
+                json_assignments,
+            ) = snapshot_instance.calculate_optimal_solution(
+                snapshot_path, iterations="400"
+            )
+            # todo: ScoringUtlity(snapshot_instance.era, json_assignments, snapshot_data).check_correctness_solution()
+        if args.save and json_winners is not None:
+            snapshot_instance.write_to_json(
+                name="_winners.json",
+                data_to_save=json_winners,
+                storage_path=calculated_solution_path,
+            )
+            snapshot_instance.write_to_json(
+                name="_assignments.json",
+                data_to_save=json_assignments,
+                storage_path=calculated_solution_path,
+            )
 
-        except WebSocketConnectionClosedException:
-            print("Connection to node closed, trying to reconnect...")
-            main(args)
+    except WebSocketConnectionClosedException:
+        print("Connection to node closed, trying to reconnect...")
+        main(args)
 
 
 def process_model_1_data(args):
     preprocessor = Preprocessor()
     progress_counter = 0
-    if len(args.eras) == 1:
-        eras = args.eras
-    else:
-        eras = range(args.eras[0], args.eras[1])
+    eras = set_era_range(args.era)
     for era in eras:
         progress_counter = progress_of_loop(
             progress_counter, eras, "Preprocessing Assignments"
         )
         preprocessor.load_data(era)
         preprocessor.preprocess_model_1_data()
-    preprocessor.concatenate_dataframes()
-    preprocessor.save_dataframe(name="model_1_data")
+        preprocessor.save_dataframe(args.model_1_path)
+
 
 
 def process_model_2_data(args):
         preprocessor = Preprocessor()
         progress_counter = 0
-        if len(args.eras) == 1:
-            eras = args.eras
-        else:
-            eras = range(args.eras[0], args.eras[1])
+        eras = set_era_range(args.era)
         for era in eras:
             progress_counter = progress_of_loop(
                 progress_counter, eras, "Preprocessing Assignments"
             )
             preprocessor.load_data(era)
             preprocessor.preprocess_model_2_data()
-        preprocessor.concatenate_dataframes()
-        preprocessor.save_dataframe(name="model_2_data")
+            preprocessor.save_dataframe(args.model_2_path)
+            preprocessor.group_bonds_by_validator()
+            preprocessor.save_dataframe(args.model_2_path + "_grouped")
+
+
+def process_model_3_data(args):
+    preprocessor = Preprocessor()
+    progress_counter = 0
+    eras = set_era_range(args.era)
+    for era in eras:
+        progress_counter = progress_of_loop(
+            progress_counter, eras, "Preprocessing Assignments"
+        )
+        preprocessor.load_data(era)
+        preprocessor.preprocess_model_3_data()
+        preprocessor.save_dataframe(args.model_3_path)
 
 
 def get_ensemble_model_2_data(eras):
@@ -372,9 +378,9 @@ def setup():
 
 
 def main(args):
-    # get_model_1_data(args)
-    #process_model_1_data(args)
-    process_model_2_data(args)
+    get_model_1_data(args)
+    process_model_1_data(args)
+    #process_model_2_data(args)
     #get_ensemble_model_2_data(args)
 
 

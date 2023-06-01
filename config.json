@@ -1,0 +1,65 @@
+{
+  "era": "990",
+  "block_numbers": "./data_collection/block_numbers/new_block_numbers_dataframe.parquet",
+    "config_path": "config.json",
+  "intermediate_results_path": "./data_collection/data/intermediate_results/",
+
+
+  "model_1_path": "./data_collection/data/processed_data/model_1_data",
+  "model_1": "logistic_regression",
+  "features_1": [
+    "overall_total_bond",
+    "overall_proportional_bond",
+    "nominator_count",
+    "elected_previous_era",
+    "era"
+  ],
+  "target_1": "elected_current_era",
+
+
+  "model_2_path": "./data_collection/data/processed_data/model_2_data",
+  "model_2": "xgboost",
+  "features_2": [
+    "validator",
+    "proportional_bond",
+    "total_bond",
+    "validator_frequency_current_era",
+    "overall_proportional_bond",
+    "overall_total_bond",
+    "era"
+  ],
+  "target_2": "solution_bond",
+
+
+    "model_3_path": "./data_collection/data/processed_data/model_3_data",
+    "model_3": "xgboost",
+  "features_3": [
+    "nominator",
+    "validator",
+    "proportional_bond",
+    "total_bond",
+    "overall_total_bond",
+    "overall_proportional_bond",
+    "era",
+    "number_of_validators",
+      "validator_frequency_current_era",
+      "average_proportional_bond",
+        "average_total_bond",
+      "nominator_index",
+      "validator_index",
+      "nominator_centrality",
+      "validator_centrality",
+      "probability_of_selection",
+      "expected_sum_stake"
+  ],
+
+
+
+  "node": {
+    "url1": "wss://rpc.polkadot.io",
+    "url": "wss://172.23.149.214:443",
+    "url2": "wss://1rpc.io/dot",
+    "ss58_format": 0,
+    "type_registry_preset": "polkadot"
+  }
+}

@@ -3,7 +3,6 @@ import ssl
 from substrateinterface import SubstrateInterface
 from collections import OrderedDict
 import subprocess
-from src.utils import progress_of_loop
 
 
 class NodeQuery:
@@ -221,9 +220,7 @@ class NodeQuery:
             self.get_voterlist_bags()
         )
         full_voterlist = []
-        bagscounter = 0
         for bag in voter_pointers_dict:
-            progress_of_loop(bagscounter, voter_pointers_dict, "Bags")
             if len(full_voterlist) == self.current_nominator_max:
                 break
             head = voter_pointers_dict[bag]["head"]
@@ -239,9 +236,7 @@ class NodeQuery:
                     if head not in self.weird_accounts:
                         full_voterlist.append(head)
         voters = []
-        counter = 0
         for voter in full_voterlist:
-            progress_of_loop(counter, full_voterlist, "Nominators")
             nominator = []
             bond = self.get_specific_nominator_exposure(voter)
             specific_nominator_targets = self.get_specific_nominator_vote(
