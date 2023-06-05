@@ -1,4 +1,6 @@
 import json
+import multiprocessing
+import time
 
 import numpy as np
 import cvxpy as cp
@@ -6,6 +8,28 @@ import pandas as pd
 import scipy as sp
 from sklearn import preprocessing
 from scipy.sparse import csr_matrix
+
+
+def proportional_adjust(dataframe):
+
+    difference = dataframe['proportional_bond'].sum() - dataframe.groupby("validator")["expected_sum_stake"].first().sum()
+
+    ratio = dataframe.groupby("validator")["expected_sum_stake"].first() / dataframe.groupby("validator")["expected_sum_stake"].first().sum()
+    dataframe['ratio'] = dataframe['validator'].map(ratio)
+    dataframe['expected_sum_stake'] += dataframe['ratio'] * difference
+    difference = dataframe['proportional_bond'].sum() - dataframe.groupby("validator")[
+        "expected_sum_stake"].first().sum()
+
+    if difference != 0:
+        print("Difference is not zero")
+        print(f"Difference: {difference}")
+        dataframe.loc[0, 'expected_sum_stake'] += difference
+
+    difference = dataframe['proportional_bond'].sum() - dataframe.groupby("validator")[
+        "expected_sum_stake"].first().sum()
+
+    return dataframe
+
 
 
 def minimise_diagonal_variance(x):
@@ -168,7 +192,99 @@ def solve_validator_selection(snapshot, winners, era):
     print(f"Finished era {era}")
 
 
+
+def solve_stake_distribution(dataframe):
+    start_time = time.time()
+
+    expected_sum_stake = dataframe.groupby("validator")['expected_sum_stake'].nth(0)
+
+    matrix_dataframe = dataframe[['nominator', 'validator', 'proportional_bond']]
+    matrix_dataframe = matrix_dataframe.pivot(index='nominator', columns='validator', values='proportional_bond')
+    matrix_dataframe = matrix_dataframe.fillna(0)
+
+    non_zero_mask = matrix_dataframe != 0
+
+    scaler = 1 / matrix_dataframe.values.mean()
+    matrix_dataframe = matrix_dataframe * scaler
+    scaler_2 = 1 / expected_sum_stake.mean()
+    expected_sum_stake = expected_sum_stake * scaler_2
+
+
+
+    x = cp.Variable(matrix_dataframe.shape, nonneg=True, name="x")
+
+
+    # create the constraints: the values cannot be negative, the sum of each row must remain the same as defined in the matrix, and the columns must sum approximately to the expected sum stake
+    constraints = [
+        cp.sum(x, axis=1) == matrix_dataframe.sum(axis=1),
+        x[~non_zero_mask] == 0,
+        cp.sum(x, axis=0) >= expected_sum_stake
+    ]
+
+    # create the objective function
+    # the objective function is to maximise the minimum sum of the columns
+    objective = cp.Maximize(cp.min(cp.sum(x, axis=0)))
+
+
+    # create the problem
+    problem = cp.Problem(objective, constraints)
+
+    problem.solve(
+        solver=cp.SCS,
+        verbose=True,
+        max_iters=10000,
+    )
+    end_time = time.time()
+    print(f"Time taken: {end_time - start_time}")
+    dataframe = x.value / scaler
+    dataframe = pd.DataFrame(dataframe)
+    sums = dataframe.sum(axis=0)
+    print(f"fdasf")
+
+
+
 if __name__ == "__main__":
+
+    era = 985
+    dataframe_distribution = pd.read_csv(f"../data/processed_data/model_3_data_{era}.csv")
+
+    #adjusted_df = proportional_adjust(dataframe_distribution)
+
+    solve_stake_distribution(dataframe_distribution)
+
+    #solve_stake_distribution(adjusted_df)
+
+    # example dataframe for stake distribution
+    example_dataframe = [
+        ["nominator_1", "validator_1", 40, 220],
+        ["nominator_1", "validator_2", 40, 270],
+        ["nominator_1", "validator_3", 40, 300],
+        ["nominator_2", "validator_1", 90, 220],
+        ["nominator_2", "validator_2", 90, 270],
+        ["nominator_2", "validator_3", 90, 190],
+        ["nominator_3", "validator_1", 200, 220],
+        ["nominator_3", "validator_2", 200, 270],
+
+    ]
+
+    example_dataframe = pd.DataFrame(example_dataframe, columns=["nominator", "validator", "proportional_bond", "expected_sum_stake"])
+    example_dataframe = proportional_adjust(example_dataframe)
+
+    solve_stake_distribution(example_dataframe)
+
+
+
+
+
+
+
+
+
+
+
+
+
+    """
     # max min stake
     # 986 inaccurate, reached max iterations
     # 990 inaccurate, reached max iterations
@@ -187,7 +303,7 @@ if __name__ == "__main__":
         ) as f:
             winners = json.load(f)
 
-        solve_validator_selection(snapshot, winners, era)
+        solve_validator_selection(snapshot, winners, era)"""
 
     """
     #dataframe = pd.read_csv("../data/model_2/1_max_min_stake.csv", index_col=0)

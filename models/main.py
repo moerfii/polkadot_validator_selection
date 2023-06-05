@@ -68,6 +68,63 @@ def predict_model_2(args):
 
 
 
+def predict_model_3(args, era):
+    """
+    predict model 3: This model predicts the stake of each validator.
+    :param args:
+    :return:
+    """
+    model = prepare(path=args.model_3_path, target_column=args.target_3, features=args.features_3, era=era)
+    model.model_selection(args.model_3)
+
+    model.divide_target_by_total_bond()
+    model.model_selection(args.model_3)
+    model.split_data(era)
+    model.scale_data()
+    model.model.fit(model.X_train, model.y_train)
+
+    if args.save:
+        model.save_trained_model()
+
+    predicted_dataframe = pd.concat([model.X[model.X["era"] == era], model.y[model.X["era"] == era]], axis=1)
+    predicted_dataframe["prediction"] = model.model.predict(model.X_test)
+    error = mean_squared_error(model.model.predict(model.X_test), model.y_test, squared=False)
+    normalized_error = error / (
+            predicted_dataframe.loc[:, "prediction"].max() - predicted_dataframe.loc[:, "prediction"].min())
+    print(f"normalized error: {normalized_error}")
+    score_model = model.model.score(model.X_test, model.y_test)
+    print(f"Model 3 score: {score_model}")
+    predicted_dataframe["prediction"] = model.multiply_predictions_by_total_bond(predicted_dataframe)
+    predicted_dataframe["prediction"] = predicted_dataframe[
+    "prediction"
+    ].astype(int)
+    print("predictions made")
+
+
+    # adjust predictions to 100%
+    adjusted_predicted_dataframe = adjust(predicted_dataframe)
+    print("predictions adjusted")
+
+    # score predictions
+    score_of_prediction = score(adjusted_predicted_dataframe)
+
+
+
+    result, score_of_prediction, score_of_calculated = compare(
+    score_of_prediction, era, args.compare
+    )
+
+    log_score(score_of_prediction, score_of_calculated, era, args.model_3, normalized_error, score_model, result)
+
+    if args.plot:
+        plot_comparison(score_of_prediction, score_of_calculated)
+
+    print(f"result: {result}")
+    print(f"score of prediction: {score_of_prediction}")
+    print(f"score of stored: {score_of_calculated}")
+
+    adjusted_predicted_dataframe.to_csv(args.intermediate_results_path + f"{era}_model_3_predictions.csv", index=False)
+
 
 
 
@@ -167,7 +224,7 @@ def compare(score_of_prediction, era, path):
         score_of_stored,
     )
 
-def log_score(score_of_prediction, era, model, normalized_error):
+def log_score(score_of_prediction, score_of_calculated, era, model, normalized_error, score_model, result):
     """
     log the score of the prediction
     :param score_of_prediction:
@@ -176,12 +233,15 @@ def log_score(score_of_prediction, era, model, normalized_error):
     log = {
         "era": era,
         "model": model,
-        "score": score_of_prediction,
-        "normalized_error": normalized_error
+        "score_prediction": score_of_prediction.tolist(),
+        "score_stored": score_of_calculated,
+        "normalized_error": normalized_error,
+        "score_model": score_model,
+        "result": result
     }
     # write to new file
-    with open(f"{model}_{era}_log.json", "w") as jsonfile:
-        json.dump(log, jsonfile)
+    with open(f"./models/results/{model}_{era}_log.json", "w") as jsonfile:
+        json.dump(log, jsonfile, indent=4)
 
 
 
@@ -290,6 +350,7 @@ def setup():
 if __name__ == "__main__":
     parser = setup()
     main(parser.parse_args())
+
 
 
 

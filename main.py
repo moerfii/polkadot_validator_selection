@@ -11,14 +11,24 @@ import argparse
 import json
 import os
 from data_collection.main import get_model_1_data, process_model_1_data, process_model_2_data, process_model_3_data
-from models.main import predict_model_1, predict_model_2
+from models.main import predict_model_1, predict_model_2, predict_model_3
 
 def subscribe():
     pass
 
 
-def predict():
-    pass
+def predict(args):
+    """
+    This function predicts the individual stake distribution for the given era. It then logs the score and prints
+    how often the score outperforms the stored score.
+    :param args:
+    :return:
+    """
+    eras = range(args.model_3_eras[0], args.model_3_eras[1])
+    for era in eras:
+        print(f"Predicting era: {era}")
+        predict_model_3(args, era)
+
 
 
 def train():
@@ -67,25 +77,26 @@ def prepare(args):
             get_model_1_data(args, era)  # todo: cleanup
 
     # when data available, preprocess model 1
-    process_model_1_data(args)
+    #process_model_1_data(args)
     print(f"Model 1 preprocessing complete")
     # predict model 1 (probability if selected)
-    predict_model_1(args)
+    #predict_model_1(args)
     print("Model 1 prediction complete")
     # preprocess model 2
-    process_model_2_data(args)
+    #process_model_2_data(args)
     print("Model 2 preprocessing complete")
     # predict model 2 (global distribution of stake)
     predict_model_2(args)
     print("Model 2 prediction complete")
     # preprocess model 3
-    process_model_3_data(args)
+    #process_model_3_data(args)
     print("Model 3 preprocessing complete")
     # done
 
 
 def main(args):
     prepare(args)
+    #predict(args)
 
 
 

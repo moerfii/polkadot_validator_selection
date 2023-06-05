@@ -31,6 +31,7 @@
   "target_2": "solution_bond",
 
 
+    "model_3_eras": [975, 990],
     "model_3_path": "./data_collection/data/processed_data/model_3_data",
     "model_3": "xgboost",
   "features_3": [
@@ -52,6 +53,10 @@
       "probability_of_selection",
       "expected_sum_stake"
   ],
+    "target_3": "solution_bond",
+    "compare": "./data_collection/data/stored_solutions_data/",
+    "plot": null,
+  "save": null,
 
 
 

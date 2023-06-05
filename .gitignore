@@ -21,6 +21,8 @@ data_collection/df_bond_distribution_2.csv
 data_collection/snapshot_with_solution.csv
 data_collection/block_numbers/signedphase_blocknumbers.json
 
+models/results/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
