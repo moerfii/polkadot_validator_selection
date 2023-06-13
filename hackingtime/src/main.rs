@@ -68,7 +68,7 @@ fn main() {
 
     let candidates = json.targets;
     let voters = json.voters;
-    let config = sp_npos_elections::BalancingConfig{iterations:iterations,tolerance:10000};
+    let config = sp_npos_elections::BalancingConfig{iterations:iterations,tolerance:0};
 	let sp_npos_elections::ElectionResult::<_, sp_runtime::Perbill> { winners, assignments } = sp_npos_elections::phragmms(
 		297,
 		candidates,

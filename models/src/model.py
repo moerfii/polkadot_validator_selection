@@ -193,15 +193,15 @@ class Model:
         transform_columns = self.X_train.select_dtypes(
             exclude=["object"]
         ).columns
-        column_transformer = make_column_transformer(
+        self.column_transformer = make_column_transformer(
             (
                 MinMaxScaler(),
                 transform_columns,
             ),
             remainder="passthrough",
         )
-        self.X_train = column_transformer.fit_transform(self.X_train)
-        self.X_test = column_transformer.transform(self.X_test)
+        self.X_train = self.column_transformer.fit_transform(self.X_train)
+        self.X_test = self.column_transformer.transform(self.X_test)
 
     def save_trained_model(self):
         """

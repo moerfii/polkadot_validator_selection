@@ -10,6 +10,9 @@
 import argparse
 import json
 import os
+
+import pandas as pd
+
 from data_collection.main import get_model_1_data, process_model_1_data, process_model_2_data, process_model_3_data
 from models.main import predict_model_1, predict_model_2, predict_model_3
 
@@ -77,19 +80,19 @@ def prepare(args):
             get_model_1_data(args, era)  # todo: cleanup
 
     # when data available, preprocess model 1
-    #process_model_1_data(args)
+    process_model_1_data(args)
     print(f"Model 1 preprocessing complete")
     # predict model 1 (probability if selected)
-    #predict_model_1(args)
+    predict_model_1(args)
     print("Model 1 prediction complete")
     # preprocess model 2
-    #process_model_2_data(args)
+    process_model_2_data(args)
     print("Model 2 preprocessing complete")
     # predict model 2 (global distribution of stake)
     predict_model_2(args)
     print("Model 2 prediction complete")
     # preprocess model 3
-    #process_model_3_data(args)
+    process_model_3_data(args)
     print("Model 3 preprocessing complete")
     # done
 

@@ -56,15 +56,41 @@ def predict_model_2(args):
         # model.feature_selection()
         model.model.fit(model.X_train, model.y_train)
 
-        print(f"Model 2 score: {model.model.score(model.X_test, model.y_test)}")
-        predictions = model.model.predict(model.X_test)
+        ############################ remove this shit if doeestn wwork
+        X = pd.read_csv(f"data_collection/data/processed_data/model_2_data_Xtest_{era}.csv")
+        # drop non numeric_columns
+        Xtest = X.loc[:, args.features_2]
+        drop_columns = Xtest.select_dtypes(include=["object"]).columns
+        Xtest = Xtest.drop(
+            drop_columns, axis=1
+        )
+        Xtest = Xtest.drop("era", axis=1)
+        Xtest = model.column_transformer.transform(Xtest)
+
+
+        #############################
+
+        #print(f"Model 2 score: {model.model.score(Xtest, model.y_test)}")
+
+
+        predictions = model.model.predict(Xtest)
 
         predicted_dataframe = pd.concat([model.X[model.X["era"] == era], model.y[model.X["era"] == era]], axis=1) #model.dataframe?
 
-        predicted_dataframe["prediction"] = predictions
+        #predicted_dataframe["prediction"] = predictions
 
-        predicted_dataframe.to_csv(args.intermediate_results_path + f"{era}_model_2_predictions.csv", index=False)
+        #predicted_dataframe.to_csv(args.intermediate_results_path + f"{era}_model_2_predictions.csv", index=False)
+
+        X['prediction'] = predictions
+        # sort values by predictions and keep top 297 rows
+
+        X.to_csv(args.intermediate_results_path + f"{era}_model_2_predictions.csv", index=False)
+
         print(f"Model 2 predictions saved to {args.intermediate_results_path + f'{era}_model_2_predictions.csv'}")
+
+
+
+
 
 
 

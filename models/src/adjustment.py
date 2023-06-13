@@ -343,6 +343,8 @@ class AdjustmentTool:
             print(sanity_check)
             raise ValueError("sanity check failed")
 
+        return dataframe
+
 
     def proportional_split_strategy(self, dataframe):
         """
@@ -530,11 +532,12 @@ class AdjustmentTool:
 
 
 if __name__ == "__main__":
+
     print("Number of cpu : ", multiprocessing.cpu_count())
 
-    dataframe = pd.read_csv("../../data_collection/data/solved_solutions/985_solved.csv", index_col=0)
-    dataframe_index = pd.read_csv("../../data_collection/data/solved_solutions/985_index.csv", index_col=0)
-    dataframe_total_bond = pd.read_csv("../../data_collection/data/processed_data/model_3_data_985.csv", index_col=0)
+    dataframe = pd.read_csv("../../data_collection/data/solved_solutions/947_solved.csv", index_col=0)
+    dataframe_index = pd.read_csv("../../data_collection/data/solved_solutions/947_index.csv", index_col=0)
+    dataframe_total_bond = pd.read_csv("../../data_collection/data/processed_data/model_3_data_947.csv", index_col=0)
     # apply index to dataframe
     dataframe.columns = dataframe_index.columns
     dataframe = dataframe.set_index(dataframe_index.index)
