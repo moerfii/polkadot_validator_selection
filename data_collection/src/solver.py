@@ -242,64 +242,49 @@ def solve_stake_distribution(dataframe):
     print(f"min:    {min(sums)}")
     dataframe.to_csv(f"../data/solved_solutions/{era}_solved.csv")
     matrix_dataframe.to_csv(f"../data/solved_solutions/{era}_index.csv")
-    print(f"fdasf")
 
 
 
 if __name__ == "__main__":
 
+    for era in range(950, 990):
 
-    #solve_stake_distribution(example_dataframe)
+        dataframe = pd.read_csv(f"../data/intermediate_results/{era}_model_2_predictions.csv")
+        dataframe_distribution = pd.read_csv(f"../data/processed_data/model_2_data_Xtest_{era}.csv")
 
-    # at this point required: one dataframe where validators not grouped, (try without expected sum stake?) --> see if sum can be improved
+        top_validators = dataframe_distribution.groupby("validator").nth(0).sort_values(by=["probability_of_selection"], ascending=False)["validator"].head(297)
 
+        top_dataframe = dataframe_distribution[dataframe_distribution['validator'].isin(top_validators)]
 
-    # need one grouped for the expected sum stake but this sucks since proportional bonds will be off for predictions
-
-
-    era = 949
-    dataframe = pd.read_csv(f"../data/intermediate_results/{era}_model_2_predictions.csv")
-    dataframe_distribution = pd.read_csv(f"../data/processed_data/model_2_data_Xtest_{era}.csv")
-
-
-
-    top_validators = dataframe_distribution.groupby("validator").nth(0).sort_values(by=["probability_of_selection"], ascending=False)["validator"].head(300)
-
-    top_dataframe = dataframe_distribution[dataframe_distribution['validator'].isin(top_validators)]
-
-
-
-
-
-    top_dataframe.loc[:, 'proportional_bond'] = top_dataframe.groupby("nominator")['total_bond'].transform(lambda x: x / x.count())
-
-    top_validators = top_dataframe.groupby("validator").sum().sort_values(by="proportional_bond", ascending=False).reset_index()['validator'].head(297)
-
-    topest_dataframe = dataframe_distribution[dataframe_distribution['validator'].isin(top_validators)]
-
-
-    topest_dataframe.loc[:, 'proportional_bond'] = topest_dataframe.groupby("nominator")['total_bond'].transform(lambda x: x / x.count())
+        top_dataframe.loc[:, 'proportional_bond'] = top_dataframe.groupby("nominator")['total_bond'].transform(lambda x: x / x.count())
+        """
+        top_validators = top_dataframe.groupby("validator").sum().sort_values(by="proportional_bond", ascending=False).reset_index()['validator'].head(297)
+    
+        topest_dataframe = dataframe_distribution[dataframe_distribution['validator'].isin(top_validators)]
+    
+    
+        topest_dataframe.loc[:, 'proportional_bond'] = topest_dataframe.groupby("nominator")['total_bond'].transform(lambda x: x / x.count())
+    
+        """
 
 
 
+        path = f"../data/calculated_solutions_data/{era}_winners.json"
+        with open(path) as f:
+            winners = json.load(f)
+
+        winners = [x[0] for x in winners]
+
+        diff = set(winners).difference(set(top_validators))
+
+        sum = top_dataframe.groupby("validator")["proportional_bond"].sum().sum()
 
 
-    path = f"../data/calculated_solutions_data/{era}_winners.json"
-    with open(path) as f:
-        winners = json.load(f)
-
-    winners = [x[0] for x in winners]
-
-    diff = set(winners).difference(set(top_validators))
-
-    sum = topest_dataframe.groupby("validator")["proportional_bond"].sum().sum()
+        #155kd7ngDyNnYaEnBBd1wESpUqfN4GmzGL4XgjkCUQpjCrFh
+        #16G8NDzxUeUbGiw2bFX3Wy7JwNEJz9U8B1smCFqqe4GPZbdN
 
 
-    #155kd7ngDyNnYaEnBBd1wESpUqfN4GmzGL4XgjkCUQpjCrFh
-    #16G8NDzxUeUbGiw2bFX3Wy7JwNEJz9U8B1smCFqqe4GPZbdN
-
-
-    solve_stake_distribution(top_dataframe)
+        solve_stake_distribution(top_dataframe)
     # era 950
     [14859076235856999, 5714282646561900371, 80893769691251710879661102727168]
     [14856922854405486, 5714518580240882000,117768636167906680000000000000000]
@@ -309,14 +294,6 @@ if __name__ == "__main__":
     [13947290473163057, 5699917970780130445, 81074286507278729908411005140992]
     [5708617365843472]
     5.708557258079818e+18
-
-
-
-    dataframe_distribution = dataframe_distribution[dataframe_distribution['validator'].isin(winners)]
-    #expectedsumstake - proportional_bond sort by difference und denn die top 297 nehmen
-    dataframe_distribution['difference'] = dataframe_distribution['expected_sum_stake'] - dataframe_distribution['total_bond']
-    dataframe_distribution = dataframe_distribution.sort_values(by=['difference'], ascending=True)
-    print(dataframe_distribution.groupby("validator")["proportional_bond"].sum().sum())### this should be 2n model () need expecgted sum stake and prop bond nominator and validator
 
 
     #solve_stake_distribution(dataframe_distribution)
