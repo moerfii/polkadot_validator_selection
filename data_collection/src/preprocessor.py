@@ -233,6 +233,86 @@ class Preprocessor:
         self.dataframe["prev_sum_stake"] = previous_era_sum_stake
         self.dataframe["prev_variance_stake"] = previous_era_variance_stake
 
+
+    def remove_validators_below_threshold(self):
+        """
+        This function sorts the dataframe by probability of selection and groups the rows by validators
+         removes all but the top 297 validators.
+        :return:
+        """
+        self.dataframe.sort_values(by=["probability_of_selection"], ascending=False, inplace=True)
+        threshold = 500
+        top_validators = self.dataframe.groupby("validator")["probability_of_selection"].first().sort_values(ascending=False).head(threshold).index
+        self.dataframe = self.dataframe[self.dataframe["validator"].isin(top_validators)]
+
+
+
+
+    def preprocess_model_2_Xtest(self):
+
+        # prepare snapshot and assignment data
+        nominator_validator_mapping = {}
+        for nominator in self.snapshot_data["voters"]:
+            nominator_validator_mapping[nominator[0]] = []
+            nominator_validator_mapping[nominator[0]].append(nominator[1])
+            nominator_validator_mapping[nominator[0]].append(nominator[2])
+
+
+        data = []
+        for row in self.snapshot_data["voters"]:
+            if row[0] == "1poDHQDGusmXn6HNxsF13mn9T6LivnbvjM3vn3RqRhW95n9":
+                print("1jeB5w8XyBADtgmVmwk2stWpTyfTVWEgLo85tF7gYVxnmSw")
+            nominator, bond, assignment = row[0], row[1], row[2]
+            for validator in set(assignment):
+                number_of_validators = len(assignment)
+                proportional_bond = bond / number_of_validators
+                full_bond = bond
+                data.append(
+                    [
+                        nominator,
+                        validator,
+                        self.era,
+                        proportional_bond,
+                        full_bond,
+                        number_of_validators,
+                    ]
+                )
+        self.dataframe = pd.DataFrame(data)
+        self.dataframe.columns = [
+            "nominator",
+            "validator",
+            "era",
+            "proportional_bond",
+            "total_bond",
+            "number_of_validators",
+        ]
+        self.add_probability_of_selection()
+        #self.remove_validators_below_threshold()
+        self.add_validator_count()
+        #self.datatype_casting()
+        self.add_column_previous_scores()
+        self.add_overall_proportional_bond()
+        self.add_overall_total_bond()
+        self.add_average_proportional_bond()
+        self.add_average_total_bond()
+        self.add_indices()
+        self.add_graph_features_nx()
+
+
+
+        #self.add_graph_features()
+        #self.update_solution_bond()
+
+        #self.add_expected_sum_stake()
+
+        #self.remove_rows_leave_one_validator_out()
+        self.dataframes.append(self.dataframe)
+        #self.removed_dataframes.append(self.removed_dataframe)
+
+
+
+
+
     def preprocess_model_2_data(self):
 
         # prepare snapshot and assignment data
@@ -295,6 +375,10 @@ class Preprocessor:
 
     def preprocess_model_3_data(self):
         self.dataframe = pd.read_csv(f"./data_collection/data/processed_data/model_2_data_{self.era}.csv")
+        self.add_expected_sum_stake()
+
+    def preprocess_model_3_data_Xtest(self):
+        self.dataframe = pd.read_csv(f"./data_collection/data/processed_data/model_2_data_Xtest_{self.era}.csv")
         self.add_expected_sum_stake()
 
 
@@ -471,23 +555,42 @@ class Preprocessor:
         dataframe = self.dataframe.astype(dtype=dtypes_dict)
         return dataframe
 
+
+    def group_bonds_by_validator_Xtest(self):
+        """
+        This function groups the bonds by validator and sums them up. Add nominator and validator columns
+        :return:
+        """
+        self.dataframe["total_bond"]  = self.dataframe["total_bond"].astype("uint64")
+        self.dataframe["proportional_bond"] = self.dataframe["proportional_bond"].astype("uint64")
+        self.dataframe = self.dataframe.groupby(["validator"]).agg((
+            {
+                "proportional_bond"                 : "sum",
+                "total_bond"                        : "sum",
+                "validator_frequency_current_era"   : "sum",
+                "probability_of_selection"          : "mean",
+                "era"                               : "mean"
+            }
+        )).reset_index()
+
     def group_bonds_by_validator(self):
         """
         This function groups the bonds by validator and sums them up. Add nominator and validator columns
         :return:
         """
+        self.dataframe["total_bond"]  = self.dataframe["total_bond"].astype("uint64")
+        self.dataframe["proportional_bond"] = self.dataframe["proportional_bond"].astype("uint64")
+        self.dataframe = self.dataframe.groupby(["validator"]).agg((
+            {
+                "proportional_bond"                 : "sum",
+                "total_bond"                        : "sum",
+                "validator_frequency_current_era"   : "sum",
+                "solution_bond"                     : "sum",
+                "probability_of_selection"          : "mean",
+                "era"                               : "mean"
+            }
+        )).reset_index()
 
-        self.dataframe = self.dataframe.groupby(["validator"])[
-            [
-             'proportional_bond',
-             'total_bond',
-             'validator_frequency_current_era',
-             'overall_proportional_bond',
-                'overall_total_bond',
-             'solution_bond'
-             ]
-        ].sum().reset_index()
-        self.dataframe['era'] = self.era
     def remove_rows_leave_one_validator_out(self):
         """
         This function groups the dataframe by nominator and removes the row with the validator with highest validator count.

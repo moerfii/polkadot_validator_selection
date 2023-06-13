@@ -1,8 +1,11 @@
 import json
 import os
+import time
+
 import numpy as np
 import pandas as pd
 from .src.get_data import NodeQuery
+from .src.scrap_from_subscan import get_block_numbers
 from .src.preprocessor import Preprocessor
 from .src.utils import (
     read_json,
@@ -134,6 +137,7 @@ def finish_preprocessing(df, eras):
 
 
 def get_model_1_data(args, era):
+
     block_numbers = read_parquet(args.block_numbers)  # todo: hookup to database of Florian, get block numbers
     # get_data(snapshot, block_numbers, True, req_dirs)
     block_numbers.sort_values("Era", inplace=True)
@@ -141,6 +145,7 @@ def get_model_1_data(args, era):
     snapshot_instance = NodeQuery()
     snapshot_instance.set_config_path(args.config_path)
     snapshot_instance.create_substrate_connection()
+    get_block_numbers(args, snapshot_instance)
     block_number_counter = 0
     snapshot_data = None
     nominator_mapping = None
@@ -263,8 +268,12 @@ def process_model_2_data(args):
             preprocessor.load_data(era)
             preprocessor.preprocess_model_2_data()
             preprocessor.save_dataframe(args.model_2_path)
-            preprocessor.group_bonds_by_validator()
+            #preprocessor.group_bonds_by_validator()
             preprocessor.save_dataframe(args.model_2_path + "_grouped")
+            preprocessor.preprocess_model_2_Xtest()
+            #preprocessor.group_bonds_by_validator_Xtest()
+            preprocessor.save_dataframe(args.model_2_path + "_Xtest")
+
 
 
 def process_model_3_data(args):
@@ -278,6 +287,8 @@ def process_model_3_data(args):
         preprocessor.load_data(era)
         preprocessor.preprocess_model_3_data()
         preprocessor.save_dataframe(args.model_3_path)
+        preprocessor.preprocess_model_3_data_Xtest()
+        preprocessor.save_dataframe(args.model_3_path + "_Xtest")
 
 
 def get_ensemble_model_2_data(eras):
@@ -387,3 +398,7 @@ def main(args):
 if __name__ == "__main__":
     parser = setup()
     main(parser.parse_args())
+
+
+
+

@@ -73,6 +73,37 @@ class ScoringUtility:
 
 
 if __name__ == "__main__":
+
+
+
+    scorer = ScoringUtility()
+    path = "../data/calculated_solutions_data/948_winners.json"
+    score = scorer.calculate_score(scorer.read_json(path))
+
+
+    print(score)
+    breakpoint()
+
+    dirs = sorted(os.listdir("../data/calculated_solutions_data/"))
+
+    scores1 = []
+    for dir in dirs:
+        if "_winners" in dir:
+            path = "../data/calculated_solutions_data/" + dir
+            scores1.append(scorer.calculate_score(scorer.read_json(path)))
+    dirs1 = sorted(os.listdir("../data/stored_solutions_data/"))
+    scores2 = []
+    for dir in dirs1:
+        print(dir)
+        path = "../data/stored_solutions_data/" + dir
+        scores2.append(np.asarray(scorer.read_json(path)["raw_solution"]["score"]))
+
+    for index, value in enumerate(scores1):
+        print(index)
+        print(scorer.is_score1_better_than_score2(value, scores2[index]))
+    print()
+    """
+    
     import pandas as pd
 
     dataframe = pd.read_csv("../data/model_2/990_max_min_stake.csv")
@@ -93,24 +124,4 @@ if __name__ == "__main__":
     dataframe = dataframe.drop(dataframe.columns[0], axis=1)
     minimum = dataframe.sum(axis=0).min()
     print(f"minimum stake of dataframe: {minimum}")
-
-    """
-    scorer = ScoringUtility()
-    dirs = sorted(os.listdir("../data/calculated_solutions_data/"))
-    scores1 = []
-    for dir in dirs:
-        if "_winners" in dir:
-            path = "../data/calculated_solutions_data/" + dir
-            scores1.append(scorer.calculate_score(scorer.read_json(path)))
-    dirs1 = sorted(os.listdir("../data/stored_solutions_data/"))
-    scores2 = []
-    for dir in dirs1:
-        print(dir)
-        path = "../data/stored_solutions_data/" + dir
-        scores2.append(np.asarray(scorer.read_json(path)["raw_solution"]["score"]))
-
-    for index, value in enumerate(scores1):
-        print(index)
-        print(scorer.is_score1_better_than_score2(value, scores2[index]))
-    print()
-    """
+        """

@@ -1,5 +1,7 @@
 import json
 import ssl
+import time
+
 from substrateinterface import SubstrateInterface
 from collections import OrderedDict
 import subprocess
@@ -186,7 +188,7 @@ class NodeQuery:
         )
         result = subprocess.run(
             [
-                "../hackingtime/target/debug/sequential_phragmen_custom",
+                "../../hackingtime/target/debug/sequential_phragmen_custom",
                 path_to_snapshot_file,
                 iterations,
                 str(self.era),
@@ -262,7 +264,27 @@ class NodeQuery:
 
 if __name__ == "__main__":
 
-    snapshot = NodeQuery()
+    snapshot_instance = NodeQuery()
+
+    start = time.time()
+    era = 986
+    snapshot_instance.set_era(era)
+    json_winners, json_assignments = snapshot_instance.calculate_optimal_solution(f"../data/snapshot_data/", iterations="20000")
+    end = time.time()
+    print(f"Time taken: {end - start}")
+    calculated_solution_path = "../data/calculated_solutions_data/"
+    snapshot_instance.write_to_json(
+        name="_winners.json",
+        data_to_save=json_winners,
+        storage_path=calculated_solution_path,
+    )
+    snapshot_instance.write_to_json(
+        name="_assignments.json",
+        data_to_save=json_assignments,
+        storage_path=calculated_solution_path,
+    )
+
+    """    snapshot = NodeQuery()
     snapshot.set_config_path("./config.json")
     snapshot.create_substrate_connection()
     snapshot.set_block_number(9771970)
@@ -287,7 +309,7 @@ if __name__ == "__main__":
     for row in set2["individual"]:
         list2.add(row[0])
     diff = len(list1.difference(list2))
-    print()
+    print()"""
 
     """   
     snapshot = StakingSnapshot()
