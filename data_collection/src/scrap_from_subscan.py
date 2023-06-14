@@ -76,7 +76,8 @@ if __name__ == "__main__":
 
     block_numbers = []
     for event in events:
-        block_numbers.append(event["block_num"])
+        if event["event_id"] == "SignedPhaseStarted":
+            block_numbers.append(event["block_num"])
     # write block numbers to file
     with open("../block_numbers/block_numbers.json", "w+") as f:
         f.write(json.dumps(block_numbers, indent=4))

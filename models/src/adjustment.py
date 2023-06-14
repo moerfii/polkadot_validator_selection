@@ -169,13 +169,12 @@ class AdjustmentTool:
         return dataframe, nominator_df
 
     def calculate_difference_expected_sum_stake_and_prediction_vectorized(self, dataframe):
-        difference = dataframe.groupby(["nominator", "validator"])['expected_sum_stake'].mean() - \
-                     dataframe.groupby(["nominator", "validator"])['prediction'].sum()
+        difference = dataframe.groupby(["nominator", "validator"])['expected_sum_stake'].first() - \
+                     dataframe.groupby(["nominator", "validator"])['prediction'].first()
         difference = np.subtract(difference, difference.min())
-        difference = difference - difference.min()
         difference = pd.DataFrame(difference).reset_index()
-        dataframe = pd.merge(dataframe, difference, on=["nominator", "validator"], how="left")
-        dataframe = dataframe.rename(columns={"0_y": "difference"})
+        difference.rename(columns={0: "difference"}, inplace=True)
+        dataframe['difference'] = difference['difference'].values
         return dataframe
 
 
@@ -187,6 +186,8 @@ class AdjustmentTool:
         """
 
         dataframe = self.calculate_difference_expected_sum_stake_and_prediction_vectorized(dataframe)
+
+
         dataframe['ratio'] = dataframe.groupby("nominator")['prediction'].transform(lambda x: x / x.sum())
 
 
@@ -207,15 +208,21 @@ class AdjustmentTool:
 
         # ensure that nominator_df["prediction"] is type int64
         dataframe["prediction"] = dataframe["prediction"].astype("int64")
+        dataframe["total_bond"] = dataframe["total_bond"].astype("int64")
+
 
         # calculate difference between total bond and sum of predictions
-        difference_to_total_bond = dataframe.groupby("nominator")['total_bond'].first() - \
-                                   dataframe.groupby("nominator")['prediction'].sum()
+        difference_to_total_bond = pd.DataFrame(dataframe.groupby("nominator")['total_bond'].first() - \
+                                   dataframe.groupby("nominator")['prediction'].sum())
 
-        # add difference to first prediction
-        for nominator in dataframe['nominator'].unique():
-            #dataframe.loc[data]
-            print()
+
+        difference_to_total_bond.reset_index(inplace=True)
+        difference_to_total_bond.sort_values(by="nominator", inplace=True)
+
+        dataframe.sort_values(by="nominator", inplace=True)
+
+        dataframe.loc[dataframe.groupby("nominator").head(1).index, "prediction"] = dataframe.loc[dataframe.groupby("nominator").head(1).index, "prediction"] + difference_to_total_bond[0].values
+
 
         # sanity check
         sanity_check = np.subtract(dataframe.groupby("nominator")['total_bond'].first(),
@@ -360,18 +367,17 @@ class AdjustmentTool:
         if dataframe is None:
             raise ValueError("dataframe is None")
 
-
-
-        dataframe["prediction"] = dataframe["prediction"].astype(int)
+        dataframe["prediction"] = dataframe["prediction"].astype("int64")
         dataframe.reset_index(drop=True, inplace=True)
+
+        dataframe = self.preadjustment(dataframe)
+        return self.apply_proportional_split_strategy_vectorized(dataframe)
+
+        """
         nominators = dataframe["nominator"].unique()
         counter = 0
 
-        dataframe = self.preadjustment(dataframe)
-        print("preadjustment done")
-
-
-        """# this is the single process version // DEBUGGING only
+        # this is the single process version // DEBUGGING only
         start = time.time()
         results = []
         for nominator in nominators:
@@ -390,12 +396,12 @@ class AdjustmentTool:
                 [(nominator, dataframe) for nominator in nominators],
             )
         # unpack results
-        results = [result[1] for result in results]"""
+        results = [result[1] for result in results]
 
-        self.apply_proportional_split_strategy_vectorized(dataframe)
+
         adjusted_dataframe = pd.concat(results)
 
-        return adjusted_dataframe
+        return adjusted_dataframe"""
 
 
     def add_removed_rows(self):
@@ -532,7 +538,7 @@ class AdjustmentTool:
 
 
 if __name__ == "__main__":
-
+    """
     print("Number of cpu : ", multiprocessing.cpu_count())
 
     dataframe = pd.read_csv("../../data_collection/data/solved_solutions/947_solved.csv", index_col=0)
@@ -556,7 +562,7 @@ if __name__ == "__main__":
     ]
     example_dataframe = pd.DataFrame(example_dataframe,
                                      columns=["nominator", "validator", "total_bond", "prediction",
-                                              "expected_sum_stake"])"""
+                                              "expected_sum_stake"])
     adjustment_tool = AdjustmentTool()
-    adjusted = adjustment_tool.adjust_solver_solution(dataframe, dataframe_total_bond)
+    adjusted = adjustment_tool.proportional_split_strategy(example_dataframe)
     print(adjustment_tool.dataframe)

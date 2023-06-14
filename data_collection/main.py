@@ -1,11 +1,10 @@
 import json
 import os
-import time
 
 import numpy as np
 import pandas as pd
 from .src.get_data import NodeQuery
-from .src.scrap_from_subscan import get_block_numbers
+from .src.get_snapshot import get_snapshot
 from .src.preprocessor import Preprocessor
 from .src.utils import (
     read_json,
@@ -48,199 +47,34 @@ required_directories = [
 ]
 
 
-def get_snapshot_data(snapshot_instance):
-    return snapshot_instance.get_snapshot()
+
+def get_model_1_data(era):
+
+    snapshot_path = "./data_collection/data/snapshot_data/"
+
+    # get snapshot
+    snapshot = get_snapshot(era)
+
+    # get indices
+    nominator_mapping, validator_mapping = Preprocessor().return_mapping_from_address_to_index(snapshot)
+
+    # save indices
+    with open(f"{snapshot_path}{era}_nominator_mapping.json", "w") as f:
+        json.dump(nominator_mapping, f)
+    with open(f"{snapshot_path}{era}_validator_mapping.json", "w") as f:
+        json.dump(validator_mapping, f)
+
+    # calculate solution (phragmen)
+    json_winners, json_assignments = Preprocessor.calculate_optimal_solution(era, snapshot_path, iterations="400")
 
 
-def get_solution_data(snapshot_instance):
-    return snapshot_instance.get_stored_solution()
+    # save solution
+    calculated_solution_path = "./data_collection/data/calculated_solutions_data/"
+    with open(f"{calculated_solution_path}{era}_winners.json", "w") as f:
+        json.dump(json_winners, f)
+    with open(f"{calculated_solution_path}{era}_assignments.json", "w") as f:
+        json.dump(json_assignments, f)
 
-
-def save_dataframe(dataframe, path):
-    dataframe.to_parquet(path)
-
-
-    # process calc_solutions
-
-
-
-
-def impute_data(df):
-
-    onehot_columns = [
-        "0_x",
-        "1_x",
-        "2_x",
-        "3_x",
-        "4_x",
-        "5_x",
-        "6_x",
-        "7_x",
-        "8_x",
-        "9_x",
-        "10_x",
-        "11_x",
-        "12_x",
-        "13_x",
-        "14_x",
-    ]
-
-    impute_columns = ["proportional_bond_y", "total_proportional_bond_y"]
-
-    for impute_column in impute_columns:
-        for column in onehot_columns:
-            median = df.loc[df[column] == 1][impute_column].median()
-            df.loc[df[column] == 1, impute_column] = df.loc[
-                df[column] == 1, impute_column
-            ].replace(np.nan, median)
-
-        median = df.loc[
-            (df[onehot_columns] == 0).all(axis=1), impute_column
-        ].median()
-        df.loc[(df[onehot_columns] == 0).all(axis=1), impute_column] = df.loc[
-            (df[onehot_columns] == 0).all(axis=1), impute_column
-        ].replace(np.nan, median)
-
-    return df
-
-
-def finish_preprocessing(df, eras):
-    # in a next step we subtract the proportional_bond from the previous era from the current era
-    # this is done to get the change in the data
-    # apply to new dataframe
-    subtracted_dataframe = df.copy()
-    for era in eras:
-        if era == eras[0]:
-            continue
-        else:
-            merged_dataframe = df.loc[df["era"] == era].merge(
-                df.loc[subtracted_dataframe["era"] == era - 1],
-                on=["nominator", "validator"],
-                how="left",
-            )
-            merged_dataframe = impute_data(merged_dataframe)
-            subtracted_dataframe.loc[
-                subtracted_dataframe["era"] == era, "proportional_bond"
-            ] = (
-                merged_dataframe["proportional_bond_x"]
-                - merged_dataframe["proportional_bond_y"]
-            )
-            subtracted_dataframe.loc[
-                subtracted_dataframe["era"] == era, "total_proportional_bond"
-            ] = (
-                merged_dataframe["total_proportional_bond_x"]
-                - merged_dataframe["total_proportional_bond_y"]
-            )
-
-    # drop all rows where era = eras[0]
-    return subtracted_dataframe.loc[subtracted_dataframe["era"] != eras[0]]
-
-
-def get_model_1_data(args, era):
-
-    block_numbers = read_parquet(args.block_numbers)  # todo: hookup to database of Florian, get block numbers
-    # get_data(snapshot, block_numbers, True, req_dirs)
-    block_numbers.sort_values("Era", inplace=True)
-    block_numbers_row = block_numbers.loc[block_numbers["Era"] == era, :]
-    snapshot_instance = NodeQuery()
-    snapshot_instance.set_config_path(args.config_path)
-    snapshot_instance.create_substrate_connection()
-    get_block_numbers(args, snapshot_instance)
-    block_number_counter = 0
-    snapshot_data = None
-    nominator_mapping = None
-    validator_mapping = None
-    solution_data = None
-    json_winners = None
-    json_assignments = None
-
-    snapshot_path = required_directories[0]
-    snapshot_path_file = snapshot_path + block_numbers_row["Era"] + "_snapshot.json"
-    stored_solution_path = required_directories[1]
-    stored_solution_path_file = (
-        stored_solution_path + block_numbers_row["Era"] + "_stored_solution.json"
-    )
-    calculated_solution_path = required_directories[2]
-    calculated_solution_path_file = (
-        calculated_solution_path + block_numbers_row["Era"] + "_winners.json"
-    )
-
-    # check if the era has already been handled, improves speed of system overall.
-    block_number_snapshot = block_numbers_row["SignedPhaseBlock"]
-    block_number_solution = block_numbers_row["SolutionStoredBlock"] + 1
-    try:
-        if not os.path.exists(snapshot_path_file):
-            # acquire snapshot
-            snapshot_instance.set_block_number(block_number_snapshot)
-            snapshot_data = get_snapshot_data(snapshot_instance)
-            (
-                nominator_mapping,
-                validator_mapping,
-            ) = Preprocessor().return_mapping_from_address_to_index(
-                snapshot_data
-            )
-
-        if args.save and snapshot_data is not None:
-            snapshot_instance.write_to_json(
-                name="_snapshot.json",
-                data_to_save=snapshot_data,
-                storage_path=snapshot_path,
-            )
-            snapshot_instance.write_to_json(
-                name="_snapshot_nominator_mapping.json",
-                data_to_save=nominator_mapping,
-                storage_path=snapshot_path,
-            )
-            snapshot_instance.write_to_json(
-                name="_snapshot_validator_mapping.json",
-                data_to_save=validator_mapping,
-                storage_path=snapshot_path,
-            )
-
-        if not os.path.exists(stored_solution_path_file):
-            # acquire stored solution
-            snapshot_instance.set_block_number(block_number_solution)
-            solution_data = get_solution_data(snapshot_instance)
-
-        if args.save and solution_data is not None:
-            snapshot_instance.write_to_json(
-                name="_stored_solution.json",
-                data_to_save=solution_data,
-                storage_path=stored_solution_path,
-            )
-
-        if not os.path.exists(calculated_solution_path_file):
-            print(
-                "calculating solution for era: ",
-                block_numbers_row["Era"],
-                " at block: ",
-                block_number_snapshot,
-                "...",
-            )
-            # calculate solution with custom phragmen rust script & only save if its equal or better to the stored one.
-            snapshot_instance.set_block_number(block_number_snapshot)
-            (
-                json_winners,
-                json_assignments,
-            ) = snapshot_instance.calculate_optimal_solution(
-                snapshot_path, iterations="400"
-            )
-            # todo: ScoringUtlity(snapshot_instance.era, json_assignments, snapshot_data).check_correctness_solution()
-        if args.save and json_winners is not None:
-            snapshot_instance.write_to_json(
-                name="_winners.json",
-                data_to_save=json_winners,
-                storage_path=calculated_solution_path,
-            )
-            snapshot_instance.write_to_json(
-                name="_assignments.json",
-                data_to_save=json_assignments,
-                storage_path=calculated_solution_path,
-            )
-
-    except WebSocketConnectionClosedException:
-        print("Connection to node closed, trying to reconnect...")
-        main(args)
 
 
 def process_model_1_data(args):
@@ -249,7 +83,7 @@ def process_model_1_data(args):
     eras = set_era_range(args.era)
     for era in eras:
         progress_counter = progress_of_loop(
-            progress_counter, eras, "Preprocessing Assignments"
+            progress_counter, eras, "Preprocessing Model 1 Data"
         )
         preprocessor.load_data(era)
         preprocessor.preprocess_model_1_data()
@@ -263,16 +97,17 @@ def process_model_2_data(args):
         eras = set_era_range(args.era)
         for era in eras:
             progress_counter = progress_of_loop(
-                progress_counter, eras, "Preprocessing Assignments"
+                progress_counter, eras, "Preprocessing Model 2 Data"
             )
             preprocessor.load_data(era)
             preprocessor.preprocess_model_2_data()
             preprocessor.save_dataframe(args.model_2_path)
-            #preprocessor.group_bonds_by_validator()
+            preprocessor.group_bonds_by_validator()
             preprocessor.save_dataframe(args.model_2_path + "_grouped")
             preprocessor.preprocess_model_2_Xtest()
-            #preprocessor.group_bonds_by_validator_Xtest()
             preprocessor.save_dataframe(args.model_2_path + "_Xtest")
+            preprocessor.group_bonds_by_validator_Xtest()
+            preprocessor.save_dataframe(args.model_2_path + "_grouped_Xtest")
 
 
 
@@ -282,7 +117,7 @@ def process_model_3_data(args):
     eras = set_era_range(args.era)
     for era in eras:
         progress_counter = progress_of_loop(
-            progress_counter, eras, "Preprocessing Assignments"
+            progress_counter, eras, "Preprocessing Model 3 Data"
         )
         preprocessor.load_data(era)
         preprocessor.preprocess_model_3_data()

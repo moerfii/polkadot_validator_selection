@@ -182,31 +182,6 @@ class NodeQuery:
             block_hash=self.block_hash,
         )
 
-    def calculate_optimal_solution(self, path_to_snapshot, iterations="10"):
-        path_to_snapshot_file = (
-            path_to_snapshot + str(self.era) + "_snapshot.json"
-        )
-        result = subprocess.run(
-            [
-                "../../hackingtime/target/debug/sequential_phragmen_custom",
-                path_to_snapshot_file,
-                iterations,
-                str(self.era),
-            ],
-            stdout=subprocess.PIPE,
-            text=True,
-        )
-        # Extract the output of the Rust script
-        output = result.stdout
-
-        # Split the output into two strings
-        string_winners, string_assignments = output.strip().split("  ")
-
-        # Parse the JSON strings into Python objects
-        json_winners = json.loads(string_winners)
-        json_assignments = json.loads(string_assignments)
-
-        return json_winners, json_assignments
 
     def write_to_json(self, name, data_to_save, storage_path):
         file_path = storage_path + str(self.era) + name

@@ -1,4 +1,5 @@
 import os
+import subprocess
 import time
 
 import numpy as np
@@ -73,6 +74,34 @@ class Preprocessor:
             with open(file) as json_file:
                 data = json.load(json_file)
                 self.process_solution_data(data)
+
+    @staticmethod
+    def calculate_optimal_solution(era, path_to_snapshot, iterations="10"):
+        path_to_snapshot_file = (
+            path_to_snapshot + str(era) + "_snapshot.json"
+        )
+        print(f"Calculating optimal solution for era {era}...")
+        result = subprocess.run(
+            [
+                "./hackingtime/target/debug/sequential_phragmen_custom",
+                path_to_snapshot_file,
+                iterations,
+                str(era),
+            ],
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        # Extract the output of the Rust script
+        output = result.stdout
+
+        # Split the output into two strings
+        string_winners, string_assignments = output.strip().split("  ")
+
+        # Parse the JSON strings into Python objects
+        json_winners = json.loads(string_winners)
+        json_assignments = json.loads(string_assignments)
+
+        return json_winners, json_assignments
 
 
     def preprocess_model_1_data(self):
@@ -241,7 +270,7 @@ class Preprocessor:
         :return:
         """
         self.dataframe.sort_values(by=["probability_of_selection"], ascending=False, inplace=True)
-        threshold = 500
+        threshold = 297
         top_validators = self.dataframe.groupby("validator")["probability_of_selection"].first().sort_values(ascending=False).head(threshold).index
         self.dataframe = self.dataframe[self.dataframe["validator"].isin(top_validators)]
 
@@ -257,13 +286,18 @@ class Preprocessor:
             nominator_validator_mapping[nominator[0]].append(nominator[1])
             nominator_validator_mapping[nominator[0]].append(nominator[2])
 
+        winners_dataframe = set(pd.read_csv(f"./data_collection/data/intermediate_results/{self.era}_model_1_predictions.csv").sort_values(by=["prediction"], ascending=False)['validator'].head(297))
+
 
         data = []
         for row in self.snapshot_data["voters"]:
-            if row[0] == "1poDHQDGusmXn6HNxsF13mn9T6LivnbvjM3vn3RqRhW95n9":
-                print("1jeB5w8XyBADtgmVmwk2stWpTyfTVWEgLo85tF7gYVxnmSw")
             nominator, bond, assignment = row[0], row[1], row[2]
-            for validator in set(assignment):
+
+            # we remove all the validators that did not win the election
+            assignment = set(assignment).intersection(winners_dataframe)
+
+            for validator in assignment:
+
                 number_of_validators = len(assignment)
                 proportional_bond = bond / number_of_validators
                 full_bond = bond
@@ -287,7 +321,7 @@ class Preprocessor:
             "number_of_validators",
         ]
         self.add_probability_of_selection()
-        #self.remove_validators_below_threshold()
+        self.remove_validators_below_threshold()
         self.add_validator_count()
         #self.datatype_casting()
         self.add_column_previous_scores()
@@ -379,7 +413,7 @@ class Preprocessor:
 
     def preprocess_model_3_data_Xtest(self):
         self.dataframe = pd.read_csv(f"./data_collection/data/processed_data/model_2_data_Xtest_{self.era}.csv")
-        self.add_expected_sum_stake()
+        self.add_expected_sum_stake_Xtest()
 
 
 
@@ -634,6 +668,17 @@ class Preprocessor:
         """
         self.dataframe["overall_total_bond"] = self.dataframe.groupby("validator")["total_bond"].transform("sum")
 
+    def add_expected_sum_stake_Xtest(self):
+        """
+        This function adds a column "expected_sum_stake" which is derived by predicting the total solution stake of a
+        validator in the current era.
+        :param df:
+        :return:
+        """
+        prediction = pd.read_csv(f"./data_collection/data/intermediate_results/{self.era}_model_2_X_test_predictions.csv")
+        self.dataframe['expected_sum_stake'] = self.dataframe['validator'].map(
+            prediction.set_index('validator')['prediction'])
+
     def add_expected_sum_stake(self):
         """
         This function adds a column "expected_sum_stake" which is derived by predicting the total solution stake of a
@@ -682,6 +727,77 @@ class Preprocessor:
             total_dataframe["proportional_bond"] >= 1
         ]
         self.dataframe['solution_bond'] = self.dataframe['validator'].map(total_dataframe.set_index(['nominator', 'validator'])['solution_bond'])
+
+    @staticmethod
+    def impute_data(df):
+
+        onehot_columns = [
+            "0_x",
+            "1_x",
+            "2_x",
+            "3_x",
+            "4_x",
+            "5_x",
+            "6_x",
+            "7_x",
+            "8_x",
+            "9_x",
+            "10_x",
+            "11_x",
+            "12_x",
+            "13_x",
+            "14_x",
+        ]
+
+        impute_columns = ["proportional_bond_y", "total_proportional_bond_y"]
+
+        for impute_column in impute_columns:
+            for column in onehot_columns:
+                median = df.loc[df[column] == 1][impute_column].median()
+                df.loc[df[column] == 1, impute_column] = df.loc[
+                    df[column] == 1, impute_column
+                ].replace(np.nan, median)
+
+            median = df.loc[
+                (df[onehot_columns] == 0).all(axis=1), impute_column
+            ].median()
+            df.loc[(df[onehot_columns] == 0).all(axis=1), impute_column] = df.loc[
+                (df[onehot_columns] == 0).all(axis=1), impute_column
+            ].replace(np.nan, median)
+
+        return df
+
+    @staticmethod
+    def finish_preprocessing(df, eras):
+        # in a next step we subtract the proportional_bond from the previous era from the current era
+        # this is done to get the change in the data
+        # apply to new dataframe
+        subtracted_dataframe = df.copy()
+        for era in eras:
+            if era == eras[0]:
+                continue
+            else:
+                merged_dataframe = df.loc[df["era"] == era].merge(
+                    df.loc[subtracted_dataframe["era"] == era - 1],
+                    on=["nominator", "validator"],
+                    how="left",
+                )
+                merged_dataframe = self.impute_data(merged_dataframe)
+                subtracted_dataframe.loc[
+                    subtracted_dataframe["era"] == era, "proportional_bond"
+                ] = (
+                        merged_dataframe["proportional_bond_x"]
+                        - merged_dataframe["proportional_bond_y"]
+                )
+                subtracted_dataframe.loc[
+                    subtracted_dataframe["era"] == era, "total_proportional_bond"
+                ] = (
+                        merged_dataframe["total_proportional_bond_x"]
+                        - merged_dataframe["total_proportional_bond_y"]
+                )
+
+        # drop all rows where era = eras[0]
+        return subtracted_dataframe.loc[subtracted_dataframe["era"] != eras[0]]
 
 if __name__ == "__main__":
     preprocessor = Preprocessor()

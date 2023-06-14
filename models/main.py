@@ -28,16 +28,11 @@ def predict_model_1(args):
         model.split_data(era)
         model.scale_data()
         model.model.fit(model.X_train, model.y_train)
-
         print(f"Model 1 {era} score: {model.model.score(model.X_test, model.y_test)}")
         predictions = model.model.predict_proba(model.X_test)
-
         predicted_dataframe = pd.concat([model.dataframe[model.X["era"] == era], model.y[model.X["era"] == era]], axis=1)
-
         predicted_dataframe["prediction"] = predictions[:, 1]
-
         predicted_dataframe.to_csv(args.intermediate_results_path + f"{era}_model_1_predictions.csv", index=False)
-        print(f"Model 1 predictions saved to {args.intermediate_results_path + f'{era}_model_1_predictions.csv'}")
 
 
 def predict_model_2(args):
@@ -56,8 +51,8 @@ def predict_model_2(args):
         # model.feature_selection()
         model.model.fit(model.X_train, model.y_train)
 
-        ############################ remove this shit if doeestn wwork
-        X = pd.read_csv(f"data_collection/data/processed_data/model_2_data_Xtest_{era}.csv")
+        ############################ remove this if doeestn wwork
+        X = pd.read_csv(f"data_collection/data/processed_data/model_2_data_grouped_Xtest_{era}.csv")
         # drop non numeric_columns
         Xtest = X.loc[:, args.features_2]
         drop_columns = Xtest.select_dtypes(include=["object"]).columns
@@ -65,29 +60,93 @@ def predict_model_2(args):
             drop_columns, axis=1
         )
         Xtest = Xtest.drop("era", axis=1)
-        Xtest = model.column_transformer.transform(Xtest)
-
+        X_test = model.column_transformer.transform(Xtest)
 
         #############################
 
-        #print(f"Model 2 score: {model.model.score(Xtest, model.y_test)}")
+        #print(f"Model 2 Xtest score: {model.model.score(X_test, model.y_test)}")
+        print(f"Model 2 score: {model.model.score(model.X_test, model.y_test)}")
 
 
-        predictions = model.model.predict(Xtest)
+        predictions_X_test = model.model.predict(X_test)
+        X['prediction'] = predictions_X_test
+        # sort values by predictions and keep top 297 rows
+        X.to_csv(args.intermediate_results_path + f"{era}_model_2_X_test_predictions.csv", index=False)
+
+        predictions = model.model.predict(model.X_test)
 
         predicted_dataframe = pd.concat([model.X[model.X["era"] == era], model.y[model.X["era"] == era]], axis=1) #model.dataframe?
 
-        #predicted_dataframe["prediction"] = predictions
+        predicted_dataframe["prediction"] = predictions
 
-        #predicted_dataframe.to_csv(args.intermediate_results_path + f"{era}_model_2_predictions.csv", index=False)
+        predicted_dataframe.to_csv(args.intermediate_results_path + f"{era}_model_2_predictions.csv", index=False)
 
-        X['prediction'] = predictions
-        # sort values by predictions and keep top 297 rows
 
-        X.to_csv(args.intermediate_results_path + f"{era}_model_2_predictions.csv", index=False)
 
-        print(f"Model 2 predictions saved to {args.intermediate_results_path + f'{era}_model_2_predictions.csv'}")
 
+def predict_model_3_Xtest(args, era):
+    """
+    predict model 3: This model predicts the stake of each validator. However the active set was predicted by model 1.
+    :param args:
+    :param era:
+    :return:
+    """
+    model = prepare(path=args.model_3_path, target_column=args.target_3, features=args.features_3, era=era)
+    model.model_selection(args.model_3)
+
+    model.divide_target_by_total_bond()
+    model.model_selection(args.model_3)
+    model.split_data(era)
+    model.scale_data()
+    model.model.fit(model.X_train, model.y_train)
+
+    ############################ remove this if doeestn wwork
+    X = pd.read_csv(f"data_collection/data/processed_data/model_3_data_Xtest_{era}.csv")
+    # drop non numeric_columns
+    Xtest = X.loc[:, args.features_3]
+    drop_columns = Xtest.select_dtypes(include=["object"]).columns
+    X_test = Xtest.drop(
+        drop_columns, axis=1
+    )
+    X_test = X_test.drop("era", axis=1)
+    X_test = model.column_transformer.transform(X_test)
+
+    #############################
+
+    predicted_dataframe = Xtest
+    predicted_dataframe["prediction"] = model.model.predict(X_test)
+
+    predicted_dataframe["prediction"] = model.multiply_predictions_by_total_bond(predicted_dataframe)
+    predicted_dataframe["prediction"] = predicted_dataframe[
+    "prediction"
+    ].astype(int)
+    print("predictions made")
+
+    adjusted_predicted_dataframe = adjust(predicted_dataframe)
+    print("predictions adjusted")
+
+    # score predictions
+    score_of_prediction = score(adjusted_predicted_dataframe)
+
+    # calculate score of stored data
+    [5965191854397, 6397342014953365028, 1180626770148946012888811012358144]
+    [   233948054317913 6397342014953365028     479799905805758421013333010284544]
+    [18647960301097461, 6396369212250032535, 140332279354622448534241185998666387]
+
+    result, score_of_prediction, score_of_calculated = compare(
+        score_of_prediction, era, args.compare
+    )
+
+    log_score(score_of_prediction, score_of_calculated, era, args.model_3, normalized_error, score_model, result)
+
+    if args.plot:
+        plot_comparison(score_of_prediction, score_of_calculated)
+
+    print(f"result: {result}")
+    print(f"score of prediction: {score_of_prediction}")
+    print(f"score of stored: {score_of_calculated}")
+
+    adjusted_predicted_dataframe.to_csv(args.intermediate_results_path + f"{era}_model_3_predictions.csv", index=False)
 
 
 
