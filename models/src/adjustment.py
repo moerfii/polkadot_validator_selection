@@ -101,7 +101,7 @@ class AdjustmentTool:
         :return: dataframe with no negative predictions
         """
 
-        dataframe.loc[dataframe["prediction"] < 0, "prediction"] = 0
+        dataframe.loc[dataframe["prediction"] <= 0, "prediction"] = 1
 
         return dataframe
 
@@ -169,12 +169,22 @@ class AdjustmentTool:
         return dataframe, nominator_df
 
     def calculate_difference_expected_sum_stake_and_prediction_vectorized(self, dataframe):
-        difference = dataframe.groupby(["nominator", "validator"])['expected_sum_stake'].first() - \
-                     dataframe.groupby(["nominator", "validator"])['prediction'].first()
+        """
+        difference = dataframe.groupby(["nominator", "validator"])['expected_sum_stake'].nth(0) - \
+                     dataframe.groupby(["nominator", "validator"])['prediction'].nth(0)
         difference = np.subtract(difference, difference.min())
         difference = pd.DataFrame(difference).reset_index()
         difference.rename(columns={0: "difference"}, inplace=True)
         dataframe['difference'] = difference['difference'].values
+        """
+
+        difference = dataframe.groupby(["validator"])['expected_sum_stake'].mean() - \
+                     dataframe.groupby(["validator"])['prediction'].sum()
+        difference = np.subtract(difference, difference.min())
+        difference = pd.DataFrame(difference).reset_index()
+        difference.rename(columns={0: "difference"}, inplace=True)
+        dataframe = dataframe.merge(difference, on="validator", how="left")
+
         return dataframe
 
 
@@ -254,20 +264,8 @@ class AdjustmentTool:
         # normalize difference
         dataframe['difference'] = dataframe.groupby("nominator")['difference'].transform(lambda x: x / x.sum())
 
-        dataframe["ratio"] =  dataframe["ratio"] + dataframe["difference"]
-        #dataframe['ratio'] = dataframe[['ratio', 'difference']].max(axis=1)
-        dataframe["ratio"] = dataframe.groupby("nominator")['ratio'].transform(lambda x: x / x.sum())
-        return dataframe
-
-    def adapt_ratio_to_expected_sum_stake_vectorized(self, dataframe):
-        """
-        This function adapts the ratio of the prediction to the expected sum stake
-        :param nominator_df: dataframe with columns: nominator, validator, proportional_bond, total_bond, number_of_validators, total_proportional_bond, era, solution_bond, prediction
-        :return: dataframe with adapted ratio
-        """
-
-        # normalize difference
-        dataframe['difference'] = dataframe.groupby("nominator")['difference'].transform(lambda x: x / x.sum())
+        if dataframe['difference'].isnull().any():
+            dataframe['difference'] = dataframe['difference'].fillna(1)
 
         dataframe["ratio"] =  dataframe["ratio"] + dataframe["difference"]
         #dataframe['ratio'] = dataframe[['ratio', 'difference']].max(axis=1)

@@ -3,7 +3,7 @@
   "end_block": "14184902",
   "block_numbers_path": "./data_collection/block_numbers/events.json",
 
-  "era": "845",
+  "era": "700",
   "block_numbers": "./data_collection/block_numbers/new_block_numbers_dataframe.parquet",
   "config_path": "config.json",
   "intermediate_results_path": "./data_collection/data/intermediate_results/",
@@ -34,7 +34,8 @@
   "target_2": "solution_bond",
 
 
-    "model_3_eras": [845, 850],
+
+    "model_3_eras": [618, 700],
     "model_3_path": "./data_collection/data/processed_data/model_3_data",
     "model_3": "xgboost",
   "features_3": [
@@ -46,15 +47,15 @@
     "overall_proportional_bond",
     "era",
     "number_of_validators",
-      "validator_frequency_current_era",
-      "average_proportional_bond",
-        "average_total_bond",
-      "nominator_index",
-      "validator_index",
-      "nominator_centrality",
-      "validator_centrality",
-      "probability_of_selection",
-      "expected_sum_stake"
+    "validator_frequency_current_era",
+    "average_proportional_bond",
+    "average_total_bond",
+    "nominator_index",
+    "validator_index",
+    "nominator_centrality",
+    "validator_centrality",
+    "probability_of_selection",
+    "expected_sum_stake"
   ],
     "target_3": "solution_bond",
     "compare": "./data_collection/data/stored_solutions_data/",

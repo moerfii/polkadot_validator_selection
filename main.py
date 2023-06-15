@@ -53,7 +53,7 @@ def check_data(args):
     :return:
     """
     test_era = int(args.era)
-    range_required = range(test_era-10, test_era+1) # set_era_range(test_era)
+    range_required = range(test_era-100, test_era+1) # set_era_range(test_era)
     list_of_eras = []
     list_of_eras.extend(range_required)
     snapshots_available = os.listdir("data_collection/data/snapshot_data/")
@@ -84,13 +84,13 @@ def prepare(args):
     #process_model_1_data(args)
     print(f"Model 1 preprocessing complete")
     # predict model 1 (probability if selected)
-    #predict_model_1(args)
+    predict_model_1(args)
     print("Model 1 prediction complete")
     # preprocess model 2
-    #process_model_2_data(args)
+    process_model_2_data(args)
     print("Model 2 preprocessing complete")
     # predict model 2 (global distribution of stake)
-    #predict_model_2(args)
+    predict_model_2(args)
     print("Model 2 prediction complete")
     # preprocess model 3
     process_model_3_data(args)

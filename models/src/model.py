@@ -4,22 +4,24 @@ import pickle
 import numpy as np
 import optuna
 from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import GroupShuffleSplit
+from sklearn.model_selection import GroupShuffleSplit, TimeSeriesSplit
 from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.ensemble import GradientBoostingRegressor, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import Ridge, Lasso
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import MinMaxScaler
-from lightgbm.sklearn import LGBMRegressor
+from lightgbm.sklearn import LGBMRegressor, LGBMClassifier
 import pandas as pd
 from src.score import ScoringTool
 from src.adjustment import AdjustmentTool
 from sklearn.compose import make_column_transformer
-from sklearn.metrics import mean_squared_error
-from xgboost import XGBRegressor
+from sklearn.metrics import mean_squared_error, accuracy_score
+from xgboost import XGBRegressor, XGBClassifier
 from sklearn.feature_selection import SelectKBest, f_regression
+from mlxtend.evaluate import GroupTimeSeriesSplit
+from sklearn.svm import SVC
 
 
 class Model:
@@ -39,7 +41,8 @@ class Model:
 
     def objective(self, trial):
         model_type = trial.suggest_categorical(
-            "regressor", ["lgbm", "xgboost"] # , "randomforest", "gradientboosting"
+            "regressor",
+            ["logistic", "svc", "randomforest_classifier", "gradientboosting_classifier", "lbgm_classifier", "xgboost_classifier"] # ["randomforest", "gradientboosting", "ridge", "lasso", "lgbm", "xgboost"]
         )
         if model_type == "randomforest":
             self.model = RandomForestRegressor(
@@ -59,9 +62,60 @@ class Model:
         elif model_type == "lasso":
             self.model = Lasso(alpha=trial.suggest_float("alpha", 0.01, 1.0))
         elif model_type == "lgbm":
-            self.model = LGBMRegressor(n_estimators=trial.suggest_int("n_estimators", 100, 1000), max_depth=trial.suggest_int("max_depth", 3, 10), learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5), random_state=42)
+            self.model = LGBMRegressor(
+                n_estimators=trial.suggest_int("n_estimators", 100, 1000),
+                max_depth=trial.suggest_int("max_depth", 3, 10),
+                learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5),
+                random_state=42,
+            )
         elif model_type == "xgboost":
-            self.model = XGBRegressor(n_estimators=trial.suggest_int("n_estimators", 100, 1000), max_depth=trial.suggest_int("max_depth", 3, 10), learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5), random_state=42)
+            self.model = XGBRegressor(
+                n_estimators=trial.suggest_int("n_estimators", 100, 1000),
+                max_depth=trial.suggest_int("max_depth", 3, 10),
+                learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5),
+                random_state=42,
+            )
+
+        elif model_type == "logistic":
+            self.model = LogisticRegression(
+                C=trial.suggest_float("C", 0.01, 1.0),
+
+            )
+        elif model_type == "svc":
+            self.model = SVC(
+                C=trial.suggest_float("C", 0.01, 1.0),
+
+            )
+        elif model_type == "randomforest_classifier":
+            self.model = RandomForestClassifier(
+                n_estimators=trial.suggest_int("n_estimators", 100, 1000),
+                max_depth=trial.suggest_int("max_depth", 3, 10),
+                random_state=42,
+            )
+
+        elif model_type == "gradientboosting_classifier":
+            self.model = GradientBoostingClassifier(
+                n_estimators=trial.suggest_int("n_estimators", 100, 1000),
+                max_depth=trial.suggest_int("max_depth", 3, 10),
+                learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5),
+                random_state=42,
+            )
+
+        elif model_type == "lbgm_classifier":
+            self.model = LGBMClassifier(
+                n_estimators=trial.suggest_int("n_estimators", 100, 1000),
+                max_depth=trial.suggest_int("max_depth", 3, 10),
+                learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5),
+                random_state=42,
+            )
+        elif model_type == "xgboost_classifier":
+            self.model = XGBClassifier(
+                n_estimators=trial.suggest_int("n_estimators", 100, 1000),
+                max_depth=trial.suggest_int("max_depth", 3, 10),
+                learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5),
+                random_state=42,
+            )
+
 
     def objective_model_accuracy(self, trial):
         self.objective(trial)
@@ -77,9 +131,17 @@ class Model:
             scoring="neg_root_mean_squared_error",
         ).mean()
 
+    def objective_model_classification_time_series(self, trial):
+        self.objective(trial)
+        return self.cross_validate_time_series_classification()
+
+    def objective_model_accuracy_time_series(self, trial):
+        self.objective(trial)
+        return self.cross_validate_time_series_accuracy()
+
     def objective_score_boosting(self, trial):
         self.objective(trial)
-        return self.cross_validate()
+        return self.cross_validate_time_series_score()
 
     @staticmethod
     def adjust(predicted_dataframe):
@@ -93,7 +155,6 @@ class Model:
             adjustment_tool.proportional_split_strategy(predicted_dataframe)
         )
         return adjusted_predicted_dataframe
-
 
     @staticmethod
     def score(adjusted_predicted_dataframe):
@@ -128,7 +189,7 @@ class Model:
         multiply predictions by total bond
         :return:
         """
-        predictions = predictions['prediction']
+        predictions = predictions["prediction"]
         predictions = predictions * self.total_bond
         return predictions
 
@@ -178,6 +239,113 @@ class Model:
             self.model.fit(self.X_train, self.y_train)
             predicted_dataframe = pd.concat(
                 [self.X.loc[indices[1]], self.y.loc[indices[1]]], axis=1
+            )
+            predicted_dataframe["prediction"] = self.model.predict(self.X_test)
+            adjusted_predicted_dataframe = self.adjust(predicted_dataframe)
+            score_of_prediction = self.score(adjusted_predicted_dataframe)
+            scores.append(score_of_prediction[1])
+        return sum(scores) / len(scores)
+
+    def cross_validate_time_series_classification(self):
+        """
+        cross validation with time series split
+        :return:
+        """
+        splits = sorted(self.X["era"].unique())
+        max_training_size = len(splits) - 1
+        length_initial_training = 3
+        drop_columns = self.X.select_dtypes(include=["object"]).columns
+        scores = []
+        for i in range(max_training_size - length_initial_training):
+            training_era_bottom = splits[length_initial_training - 3]
+            training_era_top = splits[length_initial_training]
+            length_initial_training += 1
+            test_era = splits[length_initial_training]
+
+            self.X_train = self.X.loc[self.X["era"] <= training_era_top].drop(
+                drop_columns, axis=1
+            )
+            self.y_train = self.y.loc[self.X["era"] <= training_era_top]
+            self.y_train = self.y_train.loc[self.X_train["era"] >= training_era_bottom]
+            self.X_train = self.X_train.loc[self.X_train["era"] >= training_era_bottom]
+
+            self.X_test = self.X.loc[self.X["era"] == test_era].drop(
+                drop_columns, axis=1
+            )
+            self.y_test = self.y.loc[self.X["era"] == test_era]
+            self.scale_data()
+            self.model.fit(self.X_train, self.y_train)
+            scores.append(accuracy_score(self.y_test, self.model.predict(self.X_test)))
+        return sum(scores) / len(scores)
+
+    def cross_validate_time_series_accuracy(self):
+        """
+        cross validation with time series split
+        :return:
+        """
+        splits = sorted(self.X["era"].unique())
+        max_training_size = len(splits) - 1
+        length_initial_training = 3
+        drop_columns = self.X.select_dtypes(include=["object"]).columns
+        scores = []
+        for i in range(max_training_size - length_initial_training):
+            training_era_bottom = splits[length_initial_training - 3]
+            training_era_top = splits[length_initial_training]
+            length_initial_training += 1
+            test_era = splits[length_initial_training]
+
+            self.X_train = self.X.loc[self.X["era"] <= training_era_top].drop(
+                drop_columns, axis=1
+            )
+            self.y_train = self.y.loc[self.X["era"] <= training_era_top]
+            self.y_train = self.y_train.loc[self.X_train["era"] >= training_era_bottom]
+            self.X_train = self.X_train.loc[self.X_train["era"] >= training_era_bottom]
+
+            self.X_test = self.X.loc[self.X["era"] == test_era].drop(
+                drop_columns, axis=1
+            )
+            self.y_test = self.y.loc[self.X["era"] == test_era]
+            self.scale_data()
+            self.model.fit(self.X_train, self.y_train)
+            scores.append(mean_squared_error(self.y_test, self.model.predict(self.X_test), squared=False))
+
+        return sum(scores) / len(scores)
+
+    def cross_validate_time_series_score(self):
+        """
+        cross validation with time series split
+        :return:
+        """
+        splits = sorted(self.X["era"].unique())
+        max_training_size = len(splits) - 1
+        length_initial_training = 3
+        drop_columns = self.X.select_dtypes(include=["object"]).columns
+        scores = []
+        for i in range(max_training_size):
+            training_era_bottom = splits[length_initial_training - 3]
+            training_era_top = splits[length_initial_training]
+            length_initial_training += 1
+            test_era = splits[length_initial_training]
+
+            self.X_train = self.X.loc[self.X["era"] <= training_era_top].drop(
+                drop_columns, axis=1
+            )
+            self.y_train = self.y.loc[self.X["era"] <= training_era_top]
+            self.y_train = self.y_train.loc[self.X_train["era"] >= training_era_bottom]
+            self.X_train = self.X_train.loc[self.X_train["era"] >= training_era_bottom]
+
+            self.X_test = self.X.loc[self.X["era"] == test_era].drop(
+                drop_columns, axis=1
+            )
+            self.y_test = self.y.loc[self.X["era"] == test_era]
+            self.scale_data()
+            self.model.fit(self.X_train, self.y_train)
+            predicted_dataframe = pd.concat(
+                [
+                    self.X.loc[self.X["era"] == test_era],
+                    self.y.loc[self.X["era"] == test_era],
+                ],
+                axis=1,
             )
             predicted_dataframe["prediction"] = self.model.predict(self.X_test)
             adjusted_predicted_dataframe = self.adjust(predicted_dataframe)
@@ -258,13 +426,63 @@ class Model:
         return evaluation
 
 
-if __name__ == "__main__":
+def optuna_model_1(eras):
+    training_dataframes = []
+    for era in range(eras - 8, eras):
+        training_dataframes.append(
+            pd.read_csv(
+                f"../../data_collection/data/processed_data/model_1_data_{era}.csv"
+            )
+        )
 
-    parser = argparse.ArgumentParser()
-    args = parser.parse_args()
-    dataframe = pd.read_csv(
-        "../../data_collection/data/model_2/processed_data_expected_904.csv"
-    )
+    dataframe = pd.concat(training_dataframes)
+
+    features = [
+        "overall_total_bond",
+        "overall_proportional_bond",
+        "nominator_count",
+        "elected_previous_era",
+        "era",
+    ]
+    target = "elected_current_era"
+
+    return dataframe, features, target
+
+
+def optuna_model_2(eras):
+    training_dataframes = []
+    for era in range(eras - 8, eras):
+        training_dataframes.append(
+            pd.read_csv(
+                f"../../data_collection/data/processed_data/model_2_data_{era}.csv"
+            )
+        )
+
+    dataframe = pd.concat(training_dataframes)
+
+    features = [
+        "validator",
+        "proportional_bond",
+        "total_bond",
+        "validator_frequency_current_era",
+        "probability_of_selection",
+        "era",
+    ]
+    target = "solution_bond"
+
+    return dataframe, features, target
+
+
+def optuna_model_3(eras):
+    training_dataframes = []
+    for era in range(eras - 8, eras):
+        training_dataframes.append(
+            pd.read_csv(
+                f"../../data_collection/data/processed_data/model_3_data_{era}.csv"
+            )
+        )
+
+    dataframe = pd.concat(training_dataframes)
 
     features = [
         "nominator",
@@ -273,21 +491,68 @@ if __name__ == "__main__":
         "total_bond",
         "overall_total_bond",
         "overall_proportional_bond",
-        "prev_min_stake",
-        "prev_sum_stake",
-        "prev_variance_stake",
         "era",
-        "validator_count",
-        "number_of_validators"
+        "number_of_validators",
+        "validator_frequency_current_era",
+        "average_proportional_bond",
+        "average_total_bond",
+        "nominator_index",
+        "validator_index",
+        "nominator_centrality",
+        "validator_centrality",
+        "probability_of_selection",
+        "expected_sum_stake",
     ]
-    model = Model(dataframe, "solution_bond", features)
-    model.divide_target_by_total_bond()
+
+    target = "solution_bond"
+    return dataframe, features, target
+
+
+if __name__ == "__main__":
+
+    type = "model_1"
+    eras = 980
+
+    dataframe = None
+    features = None
+    target = None
+
+    if type == "model_1":
+        dataframe, features, target = optuna_model_1(eras)
+    elif type == "model_2":
+        dataframe, features, target = optuna_model_2(eras)
+    elif type == "model_3":
+        dataframe, features, target = optuna_model_3(eras)
+
+    model = Model(dataframe, target, features)
+
+    if type == "model_2" or type == "model_3":
+        model.divide_target_by_total_bond()
     model.split_data(test_era=904)
+
+    direction = None
+    if type == "model_2":
+        direction = "minimize"
+    else:
+        direction = "maximize"
     study = optuna.create_study(
-        direction="maximize", storage="sqlite:///db.sqlite3"
+        direction=direction,
+        storage="sqlite:///db.sqlite3",
+        study_name=type,
+        load_if_exists=True,
     )
-    study.optimize(model.objective_model_accuracy, n_trials=100)
+
+    objective = None
+    if type == "model_1":
+        objective = model.objective_model_classification_time_series
+    elif type == "model_2":
+        objective = model.objective_model_accuracy_time_series
+    elif type == "model_3":
+        objective = model.objective_score_boosting
+
+    study.optimize(objective, n_trials=100)
     print(f"Best value: {study.best_value} (params: {study.best_params})")
+
     """
 
     from sklearn.linear_model import QuantileRegressor
@@ -405,8 +670,3 @@ if __name__ == "__main__":
 
     plt.show()
     """
-
-
-
-
-

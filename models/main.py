@@ -128,26 +128,55 @@ def predict_model_3_Xtest(args, era):
     # score predictions
     score_of_prediction = score(adjusted_predicted_dataframe)
 
-    # calculate score of stored data
-    [5965191854397, 6397342014953365028, 1180626770148946012888811012358144]
-    [   233948054317913 6397342014953365028     479799905805758421013333010284544]
-    [18647960301097461, 6396369212250032535, 140332279354622448534241185998666387]
+
+
+
 
     result, score_of_prediction, score_of_calculated = compare(
         score_of_prediction, era, args.compare
     )
 
-    log_score(score_of_prediction, score_of_calculated, era, args.model_3, normalized_error, score_model, result)
+    #log_score(score_of_prediction, score_of_calculated, era, args.model_3, normalized_error, score_model, result)
 
     if args.plot:
         plot_comparison(score_of_prediction, score_of_calculated)
 
     print(f"result: {result}")
     print(f"score of prediction: {score_of_prediction}")
-    print(f"score of stored: {score_of_calculated}")
+    print(f"score of stored:     {score_of_calculated}")
 
-    adjusted_predicted_dataframe.to_csv(args.intermediate_results_path + f"{era}_model_3_predictions.csv", index=False)
+    #adjusted_predicted_dataframe.to_csv(args.intermediate_results_path + f"{era}_model_3_predictions.csv", index=False)
 
+
+"""
+Predicting era: 841
+predictions made
+predictions adjusted
+stored min: 18568951829369495, predicted min: 1203432973850187
+result: False
+score of prediction: [1203432973850187 6222783408797503848 581510109112754800845943941890048]
+score of stored: [18568951829369495, 6397489551713733231, 141028458778152401309776792314188489]
+Predicting era: 842
+predictions made
+predictions adjusted
+stored min: 18647960301097461, predicted min: 2105198651663780
+result: False
+score of prediction: [2105198651663780 6373768596671473348 441601380548521653330427212988416]
+score of stored: [18647960301097461, 6394474112288344279, 140241094418936436248422836838169711]
+Predicting era: 843
+predictions made
+predictions adjusted
+stored min: 18647960301097461, predicted min: 528141036712
+result: False
+score of prediction: [528141036712 6412872764887962102 605306786342612926711476418248704]
+score of stored: [18647960301097461, 6395151310331691661, 140308953053269093561821696582452467]
+Predicting era: 844
+predictions made
+predictions adjusted
+stored min: 18647960301097461, predicted min: 94053904788
+result: False
+score of prediction: [94053904788 6402923497022432926 505961419183613570596731954921472]
+score of stored: [18647960301097461, 6398101012852875480, 140343609205232101618784683397562602]"""
 
 
 
