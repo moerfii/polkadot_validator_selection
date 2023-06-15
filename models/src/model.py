@@ -42,7 +42,7 @@ class Model:
     def objective(self, trial):
         model_type = trial.suggest_categorical(
             "regressor",
-            ["logistic", "svc", "randomforest_classifier", "gradientboosting_classifier", "lbgm_classifier", "xgboost_classifier"] # ["randomforest", "gradientboosting", "ridge", "lasso", "lgbm", "xgboost"]
+            ["logistic", "svc", "gradientboosting_classifier", "lbgm_classifier", "xgboost_classifier"] # ["gradientboosting","lgbm", "xgboost"]
         )
         if model_type == "randomforest":
             self.model = RandomForestRegressor(
