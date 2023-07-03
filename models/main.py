@@ -94,7 +94,7 @@ def predict_model_3_Xtest(args, era):
     model = prepare(path=args.model_3_path, target_column=args.target_3, features=args.features_3, era=era)
     model.model_selection(args.model_3)
 
-    model.divide_target_by_total_bond()
+    #model.divide_target_by_total_bond()
     model.model_selection(args.model_3)
     model.split_data(era)
     model.scale_data()
@@ -192,6 +192,7 @@ def predict_model_3(args, era):
     model.model_selection(args.model_3)
 
     model.divide_target_by_total_bond()
+    #model.y = np.log(model.y)
     model.model_selection(args.model_3)
     model.split_data(era)
     model.scale_data()

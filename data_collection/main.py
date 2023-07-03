@@ -44,6 +44,7 @@ required_directories = [
     "data/stored_solutions_data/",
     "data/calculated_solutions_data/",
     "data/processed_data/",
+    "data/intermediate_results/"
 ]
 
 

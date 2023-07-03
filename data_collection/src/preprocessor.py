@@ -111,9 +111,13 @@ class Preprocessor:
                                         ElectedCurrentEra, ElectedCounter, selfStake, avgStakePerNominator,)
         :return: Dataframe
         """
+
+        eligible_validators = set(self.snapshot_data['targets'])
         dataframe_list = []
         for row in self.snapshot_data["voters"]:
             for validator in row[2]:
+                if validator not in eligible_validators:
+                    continue
                 total_bond = row[1]
                 proportional_bond = row[1] / len(row[2])
                 nominator_count = 1
@@ -365,7 +369,7 @@ class Preprocessor:
                 number_of_validators = len(assignment)
                 proportional_bond = bond / number_of_validators
                 full_bond = bond
-                solution_bond = (validator[1] / 1e9) * bond
+                solution_bond = (validator[1] / 1e9) #* bond
                 data.append(
                     [
                         nominator,

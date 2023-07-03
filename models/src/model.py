@@ -42,7 +42,7 @@ class Model:
     def objective(self, trial):
         model_type = trial.suggest_categorical(
             "regressor",
-            ["logistic", "svc", "gradientboosting_classifier", "lbgm_classifier", "xgboost_classifier"] # ["gradientboosting","lgbm", "xgboost"]
+            ["xgboost"] #["gradientboosting","lgbm", "xgboost"]
         )
         if model_type == "randomforest":
             self.model = RandomForestRegressor(
@@ -321,7 +321,7 @@ class Model:
         length_initial_training = 3
         drop_columns = self.X.select_dtypes(include=["object"]).columns
         scores = []
-        for i in range(max_training_size):
+        for i in range(max_training_size - length_initial_training):
             training_era_bottom = splits[length_initial_training - 3]
             training_era_top = splits[length_initial_training]
             length_initial_training += 1
@@ -396,14 +396,48 @@ class Model:
             self.model = RandomForestRegressor(random_state=42)
         elif model_type == "gradient_boosting":
             self.model = GradientBoostingRegressor(random_state=42)
+        elif model_type == "gradient_boosting_classifier":
+            self.model = GradientBoostingClassifier(random_state=42,
+                                                    learning_rate=0.010105433442925346,
+                                                    max_depth=3,
+                                                    n_estimators=117)
         elif model_type == "ridge":
             self.model = Ridge(random_state=42)
         elif model_type == "lasso":
             self.model = Lasso(random_state=42)
-        elif model_type == "lgbm":
-            self.model = LGBMRegressor(random_state=42)
-        elif model_type == "xgboost":
-            self.model = XGBRegressor(random_state=42)
+        elif model_type == "lgbm_model_2":
+            self.model = LGBMRegressor(random_state=42,
+                                        learning_rate=0.16718178232352315,
+                                        max_depth=10,
+                                        n_estimators=959
+                                       )
+        elif model_type == "lgbm_model_3":
+            self.model = LGBMRegressor(random_state=42,
+                                        learning_rate=0.17732332270120013,
+                                        max_depth=10,
+                                        n_estimators=966
+                                       )
+        elif model_type == "lgbm_classifier":
+            self.model = LGBMClassifier(random_state=42,
+                                        learning_rate=0.4614468946579767,
+                                        max_depth=4,
+                                        n_estimators=100)
+        elif model_type == "xgboost_model_2":
+            self.model = XGBRegressor(random_state=42,
+                                       learning_rate=0.11471176253516005,
+                                       max_depth=10,
+                                       n_estimators=969)
+
+        elif model_type == "xgboost_model_3":
+            self.model = XGBRegressor(random_state=42,
+                                       learning_rate=0.10514508380628737,
+                                       max_depth=10,
+                                       n_estimators=905)
+        elif model_type == "xgboost_classifier":
+            self.model = XGBClassifier(random_state=42,
+                                       learning_rate=0.4930947860812882,
+                                       max_depth=8,
+                                       n_estimators=226)
         elif model_type == "logistic_regression":
             self.model = LogisticRegression(random_state=42)
         else:
@@ -510,8 +544,9 @@ def optuna_model_3(eras):
 
 if __name__ == "__main__":
 
-    type = "model_1"
+    type = "model_3"
     eras = 980
+    name= "xgboost_model_3"
 
     dataframe = None
     features = None
@@ -528,7 +563,6 @@ if __name__ == "__main__":
 
     if type == "model_2" or type == "model_3":
         model.divide_target_by_total_bond()
-    model.split_data(test_era=904)
 
     direction = None
     if type == "model_2":
@@ -538,7 +572,7 @@ if __name__ == "__main__":
     study = optuna.create_study(
         direction=direction,
         storage="sqlite:///db.sqlite3",
-        study_name=type,
+        study_name=name,
         load_if_exists=True,
     )
 
@@ -550,7 +584,7 @@ if __name__ == "__main__":
     elif type == "model_3":
         objective = model.objective_score_boosting
 
-    study.optimize(objective, n_trials=100)
+    study.optimize(objective, n_trials=1000)
     print(f"Best value: {study.best_value} (params: {study.best_params})")
 
     """

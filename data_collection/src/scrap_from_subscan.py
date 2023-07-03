@@ -1,4 +1,5 @@
 import argparse
+import ast
 
 import requests
 import random
@@ -19,9 +20,9 @@ def get_events(args):
         "row": 100,
         "page": 1,
         "module": "electionprovidermultiphase",
-        "event": "SignedPhaseStarted",
+        "event": "PhaseTransitioned",
         #"address": "0x62Ec573d52ECc9cDD6ed93C00a2F85Bc657878B3",
-        "block_range": f"{0}-{15000000}"
+        "block_range": f"{0}-{16000000}"
     }
 
     response = requests.post(url, json=body, headers=headers)
@@ -40,7 +41,7 @@ def get_events(args):
         else:
             print(f"Stopping due to {response.status_code} in page {i}")
             print(f"Got {len(le_json)} events")
-            with open("../block_numbers/events.json", "w+") as f:
+            with open("../block_numbers/phase_transitioned_events.json", "w+") as f:
                 f.write(json.dumps(le_json, indent=4))
             break
 
@@ -71,7 +72,31 @@ def setup():
 if __name__ == "__main__":
     #parser = setup()
     #args = parser.parse_args()
-    with open("../block_numbers/events.json", "r") as f:
+    #get_events(None)
+
+    # get block number
+    with open("../block_numbers/phase_transitioned_events.json", "r") as f:
+        events = json.load(f)
+
+    block_numbers = []
+    for event in events:
+        if event["event_id"] == "PhaseTransitioned":
+            params = event["params"]
+            params = params.replace("\\","")
+            params = params.replace("true","True")
+            params = ast.literal_eval(params)
+            for key, item in  params[1]['value'].items():
+                if key == "Signed":
+                    block_numbers.append(event["block_num"])
+
+
+    # write block numbers to file
+    with open("../block_numbers/block_numbers.json", "w+") as f:
+        f.write(json.dumps(block_numbers, indent=4))
+
+
+    """
+    #with open("../block_numbers/events.json", "r") as f:
         events = json.load(f)
 
     block_numbers = []
@@ -80,6 +105,6 @@ if __name__ == "__main__":
             block_numbers.append(event["block_num"])
     # write block numbers to file
     with open("../block_numbers/block_numbers.json", "w+") as f:
-        f.write(json.dumps(block_numbers, indent=4))
+        f.write(json.dumps(block_numbers, indent=4))"""
 
 

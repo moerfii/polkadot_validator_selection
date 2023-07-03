@@ -112,9 +112,9 @@ if __name__ == "__main__":
     with open("../block_numbers/block_numbers.json", "r") as f:
         block_numbers = json.load(f)
 
+    block_numbers = sorted(block_numbers)
 
-
-    for era in range(965, 1100):
+    for era in range(1007, 1200):
         print(era)
         era_start_block_number = era_block_dict[era]
         era_end_block_number = era_block_dict[era + 1]
