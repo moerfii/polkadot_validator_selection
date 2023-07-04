@@ -1,42 +1,46 @@
 import json
-import multiprocessing
 import time
 
 import numpy as np
 import cvxpy as cp
 import pandas as pd
-import scipy as sp
-from sklearn import preprocessing
-from scipy.sparse import csr_matrix
 
 
 def proportional_adjust(dataframe):
 
-    difference = dataframe['proportional_bond'].sum() - dataframe.groupby("validator")["expected_sum_stake"].first().sum()
+    difference = (
+        dataframe["proportional_bond"].sum()
+        - dataframe.groupby("validator")["expected_sum_stake"].first().sum()
+    )
 
-    ratio = dataframe.groupby("validator")["expected_sum_stake"].first() / dataframe.groupby("validator")["expected_sum_stake"].first().sum()
-    dataframe['ratio'] = dataframe['validator'].map(ratio)
-    dataframe['expected_sum_stake'] += dataframe['ratio'] * difference
-    difference = dataframe['proportional_bond'].sum() - dataframe.groupby("validator")[
-        "expected_sum_stake"].first().sum()
+    ratio = (
+        dataframe.groupby("validator")["expected_sum_stake"].first()
+        / dataframe.groupby("validator")["expected_sum_stake"].first().sum()
+    )
+    dataframe["ratio"] = dataframe["validator"].map(ratio)
+    dataframe["expected_sum_stake"] += dataframe["ratio"] * difference
+    difference = (
+        dataframe["proportional_bond"].sum()
+        - dataframe.groupby("validator")["expected_sum_stake"].first().sum()
+    )
 
     if difference != 0:
         print("Difference is not zero")
         print(f"Difference: {difference}")
-        dataframe.loc[0, 'expected_sum_stake'] += difference
+        dataframe.loc[0, "expected_sum_stake"] += difference
 
-    difference = dataframe['proportional_bond'].sum() - dataframe.groupby("validator")[
-        "expected_sum_stake"].first().sum()
+    difference = (
+        dataframe["proportional_bond"].sum()
+        - dataframe.groupby("validator")["expected_sum_stake"].first().sum()
+    )
 
     return dataframe
-
 
 
 def minimise_diagonal_variance(x):
     n = x.shape[1]  # number of columns
     covariances = (
-        cp.diag(cp.matmul(cp.transpose(x), x))
-        - cp.square(cp.sum(x, axis=0)) / n
+        cp.diag(cp.matmul(cp.transpose(x), x)) - cp.square(cp.sum(x, axis=0)) / n
     )
     return cp.Minimize(cp.sum(covariances))
 
@@ -132,14 +136,12 @@ def solve_validator_selection(snapshot, winners, era):
     """
 
     # drop rows with all zeros
-    voter_preferences = voter_preferences[
-        ~np.all(voter_preferences == 0, axis=1)
-    ]
+    voter_preferences = voter_preferences[~np.all(voter_preferences == 0, axis=1)]
 
     # voter_preferences = csr_matrix(voter_preferences)
 
     # previous distribution
-    prior_to_optimisation = voter_preferences.sum(axis=0)
+    voter_preferences.sum(axis=0)
 
     non_zero_mask = voter_preferences != 0
 
@@ -181,9 +183,7 @@ def solve_validator_selection(snapshot, winners, era):
     print(
         f"Variance of voter preferences: {np.var((voter_preferences /scaler).sum(axis=0))}"
     )
-    print(
-        f"Variance of optimised solution: {np.var((x.value / scaler).sum(axis=0))}"
-    )
+    print(f"Variance of optimised solution: {np.var((x.value / scaler).sum(axis=0))}")
 
     # print the results
     print("The optimal value is", problem.value)
@@ -192,39 +192,36 @@ def solve_validator_selection(snapshot, winners, era):
     print(f"Finished era {era}")
 
 
-
 def solve_stake_distribution(dataframe):
     start_time = time.time()
 
-    #expected_sum_stake = dataframe.groupby("validator")['expected_sum_stake'].nth(0)
+    # expected_sum_stake = dataframe.groupby("validator")['expected_sum_stake'].nth(0)
 
-    matrix_dataframe = dataframe[['nominator', 'validator', 'proportional_bond']]
-    matrix_dataframe = matrix_dataframe.pivot(index='nominator', columns='validator', values='proportional_bond')
+    matrix_dataframe = dataframe[["nominator", "validator", "proportional_bond"]]
+    matrix_dataframe = matrix_dataframe.pivot(
+        index="nominator", columns="validator", values="proportional_bond"
+    )
     matrix_dataframe = matrix_dataframe.fillna(0)
 
     non_zero_mask = matrix_dataframe != 0
 
     scaler = 1 / matrix_dataframe.values.mean()
     matrix_dataframe = matrix_dataframe * scaler
-    #scaler_2 = 1 / expected_sum_stake.mean()
-    #expected_sum_stake = expected_sum_stake * scaler_2
-
-
+    # scaler_2 = 1 / expected_sum_stake.mean()
+    # expected_sum_stake = expected_sum_stake * scaler_2
 
     x = cp.Variable(matrix_dataframe.shape, nonneg=True, name="x")
-
 
     # create the constraints: the values cannot be negative, the sum of each row must remain the same as defined in the matrix, and the columns must sum approximately to the expected sum stake
     constraints = [
         cp.sum(x, axis=1) == matrix_dataframe.sum(axis=1),
         x[~non_zero_mask] == 0,
-        #cp.sum(x, axis=0) >= expected_sum_stake
+        # cp.sum(x, axis=0) >= expected_sum_stake
     ]
 
     # create the objective function
     # the objective function is to maximise the minimum sum of the columns
     objective = cp.Maximize(cp.min(cp.sum(x, axis=0)))
-
 
     # create the problem
     problem = cp.Problem(objective, constraints)
@@ -239,24 +236,43 @@ def solve_stake_distribution(dataframe):
     dataframe = x.value / scaler
     dataframe = pd.DataFrame(dataframe)
     sums = dataframe.sum(axis=0)
-    print(f"min:    {min(sums)}")
+    print(f"era: {era}")
+    print(f"min:   {np.min(sums)}")
+    print(f"sum:   {np.sum(sums)}")
+    print(f"var:   {np.var(sums)}")
     dataframe.to_csv(f"../data/solved_solutions/{era}_solved.csv")
     matrix_dataframe.to_csv(f"../data/solved_solutions/{era}_index.csv")
 
 
-
 if __name__ == "__main__":
 
-    for era in range(950, 990):
+    for era in range(1000, 1010):
 
-        dataframe = pd.read_csv(f"../data/intermediate_results/{era}_model_2_predictions.csv")
-        dataframe_distribution = pd.read_csv(f"../data/processed_data/model_2_data_Xtest_{era}.csv")
+        dataframe = pd.read_csv(
+            f"../data/intermediate_results/{era}_model_2_predictions.csv"
+        )
+        dataframe_distribution = pd.read_csv(
+            f"../data/processed_data/model_2_data_Xtest_{era}.csv"
+        )
 
-        top_validators = dataframe_distribution.groupby("validator").nth(0).sort_values(by=["probability_of_selection"], ascending=False)["validator"].head(297)
+        print(len(dataframe_distribution.groupby("validator")
+            .nth(0)))
 
-        top_dataframe = dataframe_distribution[dataframe_distribution['validator'].isin(top_validators)]
+        top_validators = (
+            dataframe_distribution.groupby("validator")
+            .nth(0)
+            .sort_values(by=["probability_of_selection"], ascending=False)["validator"]
+            .head(297)
+        )
 
-        top_dataframe.loc[:, 'proportional_bond'] = top_dataframe.groupby("nominator")['total_bond'].transform(lambda x: x / x.count())
+
+        top_dataframe = dataframe_distribution[
+            dataframe_distribution["validator"].isin(top_validators)
+        ]
+
+        top_dataframe.loc[:, "proportional_bond"] = top_dataframe.groupby("nominator")[
+            "total_bond"
+        ].transform(lambda x: x / x.count())
         """
         top_validators = top_dataframe.groupby("validator").sum().sort_values(by="proportional_bond", ascending=False).reset_index()['validator'].head(297)
     
@@ -266,8 +282,6 @@ if __name__ == "__main__":
         topest_dataframe.loc[:, 'proportional_bond'] = topest_dataframe.groupby("nominator")['total_bond'].transform(lambda x: x / x.count())
     
         """
-
-
 
         path = f"../data/calculated_solutions_data/{era}_winners.json"
         with open(path) as f:
@@ -279,24 +293,20 @@ if __name__ == "__main__":
 
         sum = top_dataframe.groupby("validator")["proportional_bond"].sum().sum()
 
-
-        #155kd7ngDyNnYaEnBBd1wESpUqfN4GmzGL4XgjkCUQpjCrFh
-        #16G8NDzxUeUbGiw2bFX3Wy7JwNEJz9U8B1smCFqqe4GPZbdN
-
+        # 155kd7ngDyNnYaEnBBd1wESpUqfN4GmzGL4XgjkCUQpjCrFh
+        # 16G8NDzxUeUbGiw2bFX3Wy7JwNEJz9U8B1smCFqqe4GPZbdN
 
         solve_stake_distribution(top_dataframe)
     # era 950
     [14859076235856999, 5714282646561900371, 80893769691251710879661102727168]
-    [14856922854405486, 5714518580240882000,117768636167906680000000000000000]
-
+    [14856922854405486, 5714518580240882000, 117768636167906680000000000000000]
 
     # era 949
     [13947290473163057, 5699917970780130445, 81074286507278729908411005140992]
     [5708617365843472]
-    5.708557258079818e+18
+    5.708557258079818e18
 
-
-    #solve_stake_distribution(dataframe_distribution)
+    # solve_stake_distribution(dataframe_distribution)
     """
     #solve_stake_distribution(adjusted_df)
 
@@ -317,18 +327,6 @@ if __name__ == "__main__":
     example_dataframe = proportional_adjust(example_dataframe)
 
     solve_stake_distribution(example_dataframe)"""
-
-
-
-
-
-
-
-
-
-
-
-
 
     """
     # max min stake

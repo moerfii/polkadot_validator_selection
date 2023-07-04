@@ -45,23 +45,17 @@ class ScoringUtility:
             print("Bad solution stored")
             return True
         # compare min stake: goal is to maximise: if calculated is worse return False
-        print(
-            f"storedmin: {scores2_array[0]}, calcmin: {int(scores1_array[0])}"
-        )
+        print(f"storedmin: {scores2_array[0]}, calcmin: {int(scores1_array[0])}")
         if scores2_array[0] > int(scores1_array[0]):
             return False
 
         # compare sum stakes: goal is to maximise: if calculated is worse return False
-        print(
-            f"storedsum: {scores2_array[1]}, calcsum: {int(scores1_array[1])}"
-        )
+        print(f"storedsum: {scores2_array[1]}, calcsum: {int(scores1_array[1])}")
         if scores2_array[1] > int(scores1_array[1]):
             return False
 
         # compare variance of stakes: goal is to minimise: if calculated is worse return False
-        print(
-            f"storedvar: {scores2_array[2]}, calcvar: {int(scores1_array[2])}"
-        )
+        print(f"storedvar: {scores2_array[2]}, calcvar: {int(scores1_array[2])}")
         if scores2_array[2] < int(scores1_array[2]):
             return False
         return True
@@ -74,12 +68,9 @@ class ScoringUtility:
 
 if __name__ == "__main__":
 
-
-
     scorer = ScoringUtility()
     path = "../data/calculated_solutions_data/948_winners.json"
     score = scorer.calculate_score(scorer.read_json(path))
-
 
     print(score)
     breakpoint()

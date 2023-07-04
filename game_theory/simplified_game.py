@@ -1,5 +1,5 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 """
 The game is as such:
@@ -54,7 +54,6 @@ def setup_game():
 
     nominators["validator_list"] = [np.empty(0, dtype=float)] * len(nominators)
 
-    number = []
     for index, row in nominators.iterrows():
         number_of_validators = np.random.poisson(
             lam=15

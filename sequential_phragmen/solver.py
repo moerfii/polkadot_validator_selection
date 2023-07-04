@@ -1,10 +1,8 @@
 import json
 
-import numpy as np
 import cvxpy as cp
+import numpy as np
 import pandas as pd
-import scipy as sp
-from sklearn import preprocessing
 
 
 def solve_validator_selection(snapshot, winners):
@@ -27,7 +25,9 @@ def solve_validator_selection(snapshot, winners):
     # Create matrix of voter preferences
     voter_preferences = np.zeros((len(nominator_names), len(validator_names)))
     for row in voters:
-        length_active_validators = sum([1 if validator in validator_names else 0 for validator in row[2]])
+        length_active_validators = sum(
+            [1 if validator in validator_names else 0 for validator in row[2]]
+        )
         if length_active_validators == 0:
             continue
         proportional_bond = row[1] / length_active_validators
@@ -40,15 +40,13 @@ def solve_validator_selection(snapshot, winners):
                 pass
 
     # drop rows with all zeros
-    voter_preferences = voter_preferences[
-        ~np.all(voter_preferences == 0, axis=1)
-    ]
+    voter_preferences = voter_preferences[~np.all(voter_preferences == 0, axis=1)]
 
     # previous distribution
-    prior_to_optimisation = voter_preferences.sum(axis=0)
+    # prior_to_optimisation = voter_preferences.sum(axis=0)
 
     non_zero_mask = voter_preferences != 0
-     # create the variables to be optimised, it should be in the shape of the matrix
+    # create the variables to be optimised, it should be in the shape of the matrix
     x = cp.Variable(voter_preferences.shape, nonneg=True)
 
     # create the constraints
@@ -70,16 +68,13 @@ def solve_validator_selection(snapshot, winners):
     # solve the problem
     problem.solve(verbose=True, solver=cp.SCIP, max_iters=10000)
 
-
-
-    posterior_to_optimisation = (x.value).sum(axis=0)
+    # posterior_to_optimisation = (x.value).sum(axis=0)
 
     # print the results
     print("The optimal value is", problem.value)
     print("A solution x is")
     print(x.value)
-    dataframe = x.value
-    pd.DataFrame(x.value / scaler).to_csv("../data/model_2/591_max_min_stake.csv")
+    pd.DataFrame(x.value).to_csv("../data/model_2/591_max_min_stake.csv")
     print("A dual solution corresponding to the inequality constraints is")
     print(constraints[0].dual_value)
 
@@ -89,7 +84,9 @@ if __name__ == "__main__":
     with open("../data_collection/data/snapshot_data/994_snapshot.json", "r") as f:
         snapshot = json.load(f)
 
-    with open("../data_collection/data/calculated_solutions_data/994_winners.json", "r") as f:
+    with open(
+        "../data_collection/data/calculated_solutions_data/994_winners.json", "r"
+    ) as f:
         winners = json.load(f)
 
     """snapshot = {

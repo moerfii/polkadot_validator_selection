@@ -20,14 +20,12 @@ class AdjustmentTool:
         self.dataframe = dataframe
 
     def apply_even_split_strategy(self, nominator, dataframe):
-        nominator_df = dataframe.loc[
-            dataframe["nominator"] == nominator
-        ].reset_index(drop=True)
+        nominator_df = dataframe.loc[dataframe["nominator"] == nominator].reset_index(
+            drop=True
+        )
         # if the nominator_df consists of only one row, we simply set the prediction equal to the total bond
         if len(nominator_df["prediction"]) == 1:
-            nominator_df.loc[0, "prediction"] = nominator_df.loc[
-                0, "total_bond"
-            ]
+            nominator_df.loc[0, "prediction"] = nominator_df.loc[0, "total_bond"]
             return nominator_df
 
         # count how many 0 predictions there are
@@ -73,15 +71,11 @@ class AdjustmentTool:
                 + mod_difference_to_total_bond
             )
 
-        nominator_df.loc[
-            ~zero_predictions_mask, ["prediction"]
-        ] = nominator_df.loc[~zero_predictions_mask, "prediction"].add(
-            prediction_sum_difference
-        )
+        nominator_df.loc[~zero_predictions_mask, ["prediction"]] = nominator_df.loc[
+            ~zero_predictions_mask, "prediction"
+        ].add(prediction_sum_difference)
 
-        sanity_check = np.subtract(
-            total_bond, nominator_df["prediction"].sum()
-        )
+        sanity_check = np.subtract(total_bond, nominator_df["prediction"].sum())
         if sanity_check != 0:
             print(nominator_df)
             print(sanity_check)
@@ -107,15 +101,14 @@ class AdjustmentTool:
 
     def apply_proportional_split_strategy(self, nominator, dataframe):
 
+        dataframe = self.calculate_difference_expected_sum_stake_and_prediction(
+            dataframe
+        )
 
-
-        dataframe = self.calculate_difference_expected_sum_stake_and_prediction(dataframe)
-
-
-        nominator_df = dataframe.loc[
-            dataframe["nominator"] == nominator
-        ].reset_index(drop=True)
-        total_bond = nominator_df['total_bond'].values[0]
+        nominator_df = dataframe.loc[dataframe["nominator"] == nominator].reset_index(
+            drop=True
+        )
+        total_bond = nominator_df["total_bond"].values[0]
         # if the nominator_df consists of only one row, we simply set the prediction equal to the total bond
         if len(nominator_df["prediction"]) == 1:
             nominator_df.loc[0, "prediction"] = total_bond
@@ -128,16 +121,12 @@ class AdjustmentTool:
 
         # if the ratio is NaN, we set an even split
         if nominator_df["ratio"].isnull().values.any():
-            nominator_df["ratio"] = nominator_df["ratio"].fillna(
-                1 / len(nominator_df)
-            )
+            nominator_df["ratio"] = nominator_df["ratio"].fillna(1 / len(nominator_df))
 
         nominator_df = self.adapt_ratio_to_expected_sum_stake(nominator_df)
 
         # multiply ratio with total bond
-        nominator_df["prediction"] = (
-            nominator_df["ratio"] * nominator_df["total_bond"]
-        )
+        nominator_df["prediction"] = nominator_df["ratio"] * nominator_df["total_bond"]
 
         # round prediction to the nearest integer
         nominator_df["prediction"] = np.floor(nominator_df["prediction"])
@@ -156,19 +145,21 @@ class AdjustmentTool:
         )
 
         # sanity check
-        sanity_check = np.subtract(
-            total_bond, nominator_df["prediction"].sum()
-        )
+        sanity_check = np.subtract(total_bond, nominator_df["prediction"].sum())
         if sanity_check != 0:
             print(nominator_df)
             print(sanity_check)
             raise ValueError("sanity check failed")
 
-        dataframe.loc[dataframe['nominator'] == nominator, 'prediction'] = nominator_df['prediction'].values
+        dataframe.loc[dataframe["nominator"] == nominator, "prediction"] = nominator_df[
+            "prediction"
+        ].values
 
         return dataframe, nominator_df
 
-    def calculate_difference_expected_sum_stake_and_prediction_vectorized(self, dataframe):
+    def calculate_difference_expected_sum_stake_and_prediction_vectorized(
+        self, dataframe
+    ):
         """
         difference = dataframe.groupby(["nominator", "validator"])['expected_sum_stake'].nth(0) - \
                      dataframe.groupby(["nominator", "validator"])['prediction'].nth(0)
@@ -178,15 +169,16 @@ class AdjustmentTool:
         dataframe['difference'] = difference['difference'].values
         """
 
-        difference = dataframe.groupby(["validator"])['expected_sum_stake'].mean() - \
-                     dataframe.groupby(["validator"])['prediction'].sum()
+        difference = (
+            dataframe.groupby(["validator"])["expected_sum_stake"].mean()
+            - dataframe.groupby(["validator"])["prediction"].sum()
+        )
         difference = np.subtract(difference, difference.min())
         difference = pd.DataFrame(difference).reset_index()
         difference.rename(columns={0: "difference"}, inplace=True)
         dataframe = dataframe.merge(difference, on="validator", how="left")
 
         return dataframe
-
 
     def apply_proportional_split_strategy_vectorized(self, dataframe):
         """
@@ -195,23 +187,26 @@ class AdjustmentTool:
         :return: dataframe with predictions
         """
 
-        dataframe = self.calculate_difference_expected_sum_stake_and_prediction_vectorized(dataframe)
+        #dataframe = (
+        #    self.calculate_difference_expected_sum_stake_and_prediction_vectorized(
+        #        dataframe
+        #    )
+        #)
 
-
-        dataframe['ratio'] = dataframe.groupby("nominator")['prediction'].transform(lambda x: x / x.sum())
-
+        dataframe["ratio"] = dataframe.groupby("nominator")["prediction"].transform(
+            lambda x: x / x.sum()
+        )
 
         # if the ratio is NaN, we set an even split
         if dataframe["ratio"].isnull().values.any():
-            dataframe.loc[dataframe['ratio'].isnull()] = dataframe.groupby("nominator")['ratio'].transform(lambda x: x.fillna(1 / len(x)))
+            dataframe.loc[dataframe["ratio"].isnull()] = dataframe.groupby("nominator")[
+                "ratio"
+            ].transform(lambda x: x.fillna(1 / len(x)))
 
-
-        dataframe = self.adapt_ratio_to_expected_sum_stake_vectorized(dataframe)
+        #dataframe = self.adapt_ratio_to_expected_sum_stake_vectorized(dataframe)
 
         # multiply ratio with total bond
-        dataframe["prediction"] = (
-            dataframe["ratio"] * dataframe["total_bond"]
-        )
+        dataframe["prediction"] = dataframe["ratio"] * dataframe["total_bond"]
 
         # round prediction to the nearest integer
         dataframe["prediction"] = np.floor(dataframe["prediction"])
@@ -220,23 +215,27 @@ class AdjustmentTool:
         dataframe["prediction"] = dataframe["prediction"].astype("int64")
         dataframe["total_bond"] = dataframe["total_bond"].astype("int64")
 
-
         # calculate difference between total bond and sum of predictions
-        difference_to_total_bond = pd.DataFrame(dataframe.groupby("nominator")['total_bond'].first() - \
-                                   dataframe.groupby("nominator")['prediction'].sum())
-
+        difference_to_total_bond = pd.DataFrame(
+            dataframe.groupby("nominator")["total_bond"].first()
+            - dataframe.groupby("nominator")["prediction"].sum()
+        )
 
         difference_to_total_bond.reset_index(inplace=True)
         difference_to_total_bond.sort_values(by="nominator", inplace=True)
 
         dataframe.sort_values(by="nominator", inplace=True)
 
-        dataframe.loc[dataframe.groupby("nominator").head(1).index, "prediction"] = dataframe.loc[dataframe.groupby("nominator").head(1).index, "prediction"] + difference_to_total_bond[0].values
-
+        dataframe.loc[dataframe.groupby("nominator").head(1).index, "prediction"] = (
+            dataframe.loc[dataframe.groupby("nominator").head(1).index, "prediction"]
+            + difference_to_total_bond[0].values
+        )
 
         # sanity check
-        sanity_check = np.subtract(dataframe.groupby("nominator")['total_bond'].first(),
-                                   dataframe.groupby("nominator")['prediction'].sum())
+        sanity_check = np.subtract(
+            dataframe.groupby("nominator")["total_bond"].first(),
+            dataframe.groupby("nominator")["prediction"].sum(),
+        )
         if sanity_check.sum() != 0:
             print(dataframe)
             print(sanity_check)
@@ -251,7 +250,10 @@ class AdjustmentTool:
         :param dataframe:
         :return:
         """
-        dataframe.loc[dataframe['nominator'] == nominator_df['nominator'].values[0], 'prediction'] = nominator_df['prediction'].values[0]
+        dataframe.loc[
+            dataframe["nominator"] == nominator_df["nominator"].values[0],
+            "prediction",
+        ] = nominator_df["prediction"].values[0]
         return dataframe
 
     def adapt_ratio_to_expected_sum_stake_vectorized(self, dataframe):
@@ -262,14 +264,18 @@ class AdjustmentTool:
         """
 
         # normalize difference
-        dataframe['difference'] = dataframe.groupby("nominator")['difference'].transform(lambda x: x / x.sum())
+        dataframe["difference"] = dataframe.groupby("nominator")[
+            "difference"
+        ].transform(lambda x: x / x.sum())
 
-        if dataframe['difference'].isnull().any():
-            dataframe['difference'] = dataframe['difference'].fillna(1)
+        if dataframe["difference"].isnull().any():
+            dataframe["difference"] = dataframe["difference"].fillna(1)
 
-        dataframe["ratio"] =  dataframe["ratio"] + dataframe["difference"]
-        #dataframe['ratio'] = dataframe[['ratio', 'difference']].max(axis=1)
-        dataframe["ratio"] = dataframe.groupby("nominator")['ratio'].transform(lambda x: x / x.sum())
+        dataframe["ratio"] = dataframe["ratio"] + dataframe["difference"]
+        # dataframe['ratio'] = dataframe[['ratio', 'difference']].max(axis=1)
+        dataframe["ratio"] = dataframe.groupby("nominator")["ratio"].transform(
+            lambda x: x / x.sum()
+        )
         return dataframe
 
     def adapt_ratio_to_expected_sum_stake(self, nominator_df):
@@ -281,40 +287,44 @@ class AdjustmentTool:
 
         # normalize difference
 
-        nominator_df["difference"] = nominator_df["difference"] / nominator_df["difference"].sum()
+        nominator_df["difference"] = (
+            nominator_df["difference"] / nominator_df["difference"].sum()
+        )
         #nominator_df["ratio"] =  nominator_df["ratio"] + nominator_df["difference"]
-        nominator_df['ratio'] = nominator_df[['ratio', 'difference']].max(axis=1)
+        nominator_df["ratio"] = nominator_df[["ratio", "difference"]].max(axis=1)
         nominator_df["ratio"] = nominator_df["ratio"] / nominator_df["ratio"].sum()
         return nominator_df
 
     def calculate_difference_expected_sum_stake_and_prediction(self, dataframe):
 
-        difference = dataframe.groupby("validator")['expected_sum_stake'].mean() - dataframe.groupby("validator")['prediction'].sum()
+        difference = (
+            dataframe.groupby("validator")["expected_sum_stake"].mean()
+            - dataframe.groupby("validator")["prediction"].sum()
+        )
         difference = difference - difference.min()
         dataframe["difference"] = dataframe["validator"].map(difference)
         return dataframe
 
-
-    def adjust_solver_solution(self,dataframe, total_bond_df):
-
+    def adjust_solver_solution(self, dataframe, total_bond_df):
 
         # stack the dataframe
         dataframe = dataframe.stack().reset_index()
 
         # rename columns
-        dataframe.columns = ['nominator', 'validator', 'prediction']
-
+        dataframe.columns = ["nominator", "validator", "prediction"]
 
         # merge total_bond dataframe with dataframe
-        dataframe = total_bond_df.merge(dataframe, on=['nominator', 'validator'], how='left')
+        dataframe = total_bond_df.merge(
+            dataframe, on=["nominator", "validator"], how="left"
+        )
 
         # calculate ratio
-        dataframe['ratio'] = dataframe.groupby("nominator")['prediction'].transform(lambda x: x / x.sum())
+        dataframe["ratio"] = dataframe.groupby("nominator")["prediction"].transform(
+            lambda x: x / x.sum()
+        )
 
         # multiply ratio with total bond
-        dataframe["prediction"] = (
-            dataframe["ratio"] * dataframe["total_bond"]
-        )
+        dataframe["prediction"] = dataframe["ratio"] * dataframe["total_bond"]
 
         # round prediction to the nearest integer
         dataframe["prediction"] = np.floor(dataframe["prediction"])
@@ -323,8 +333,10 @@ class AdjustmentTool:
         dataframe["prediction"] = dataframe["prediction"].astype("int64")
 
         # Calculate difference between total bond and sum of predictions
-        difference = dataframe.groupby("nominator")['total_bond'].first() - \
-                     dataframe.groupby("nominator")['prediction'].sum()
+        difference = (
+            dataframe.groupby("nominator")["total_bond"].first()
+            - dataframe.groupby("nominator")["prediction"].sum()
+        )
 
         # map difference to dataframe
         dataframe["difference"] = dataframe["nominator"].map(difference)
@@ -334,22 +346,24 @@ class AdjustmentTool:
 
         # Add positive differences to the first validator of each nominator
 
-
-        dataframe.loc[dataframe.index.isin(first_indices), 'prediction'] += dataframe.loc[first_indices, 'difference']
+        dataframe.loc[
+            dataframe.index.isin(first_indices), "prediction"
+        ] += dataframe.loc[first_indices, "difference"]
 
         # Subtract negative differences from the first validator of each nominator
-        #dataframe.loc[dataframe.index.isin(first_indices) & negative_mask, 'prediction'] += dataframe.loc[first_indices, 'difference']
+        # dataframe.loc[dataframe.index.isin(first_indices) & negative_mask, 'prediction'] += dataframe.loc[first_indices, 'difference']
 
         # sanity check
-        sanity_check = np.subtract(dataframe.groupby("nominator")['total_bond'].first(),
-                                   dataframe.groupby("nominator")['prediction'].sum())
+        sanity_check = np.subtract(
+            dataframe.groupby("nominator")["total_bond"].first(),
+            dataframe.groupby("nominator")["prediction"].sum(),
+        )
         if sanity_check.sum() != 0:
             print(dataframe)
             print(sanity_check)
             raise ValueError("sanity check failed")
 
         return dataframe
-
 
     def proportional_split_strategy(self, dataframe):
         """
@@ -369,15 +383,18 @@ class AdjustmentTool:
         dataframe.reset_index(drop=True, inplace=True)
 
         dataframe = self.preadjustment(dataframe)
-        return self.apply_proportional_split_strategy_vectorized(dataframe)
+        #return self.apply_proportional_split_strategy_vectorized(dataframe)
 
-        """
-        nominators = dataframe["nominator"].unique()
-        counter = 0
+
 
         # this is the single process version // DEBUGGING only
         start = time.time()
         results = []
+        dataframe = self.calculate_difference_expected_sum_stake_and_prediction(
+            dataframe
+        )
+        nominators = dataframe["nominator"].unique()
+        counter = 0
         for nominator in nominators:
             counter += 1
             print(f"nominator {counter} of {len(nominators)}")
@@ -385,7 +402,8 @@ class AdjustmentTool:
             results.append(nominator_df)
 
         end = time.time()
-        print(f"single process version took {end - start} seconds")"""
+        print(f"single process version took {end - start} seconds")
+        return pd.concat(results)
         """
         # this is the multiprocessing version
         #with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
@@ -400,7 +418,6 @@ class AdjustmentTool:
         adjusted_dataframe = pd.concat(results)
 
         return adjusted_dataframe"""
-
 
     def add_removed_rows(self):
         """
@@ -422,11 +439,14 @@ class AdjustmentTool:
         :return:
         """
 
-        difference = self.dataframe.groupby("nominator")['total_bond'].mean() - self.dataframe.groupby("nominator")['prediction'].sum()
-        self.dataframe.loc[self.dataframe['prediction'].isnull(), 'prediction'] = self.dataframe['nominator'].map(difference)
+        difference = (
+            self.dataframe.groupby("nominator")["total_bond"].mean()
+            - self.dataframe.groupby("nominator")["prediction"].sum()
+        )
+        self.dataframe.loc[
+            self.dataframe["prediction"].isnull(), "prediction"
+        ] = self.dataframe["nominator"].map(difference)
         return self.dataframe
-
-
 
     def even_split_strategy(self, dataframe=None):
         """
@@ -482,9 +502,7 @@ class AdjustmentTool:
         """
         max_index = dataframe["prediction"].idxmax()
         value_to_subtract = (
-            dataframe.loc[dataframe["prediction"] < 0, "prediction"]
-            .abs()
-            .sum()
+            dataframe.loc[dataframe["prediction"] < 0, "prediction"].abs().sum()
         )
         dataframe.loc[dataframe["prediction"] < 0, "prediction"] = 0
         dataframe.loc[max_index, "prediction"] = (
@@ -558,9 +576,16 @@ if __name__ == "__main__":
         ["nominator_3", "validator_2", 100, 100, 150],
         ["nominator_3", "validator_3", 100, 50, 50],
     ]
-    example_dataframe = pd.DataFrame(example_dataframe,
-                                     columns=["nominator", "validator", "total_bond", "prediction",
-                                              "expected_sum_stake"])
+    example_dataframe = pd.DataFrame(
+        example_dataframe,
+        columns=[
+            "nominator",
+            "validator",
+            "total_bond",
+            "prediction",
+            "expected_sum_stake",
+        ],
+    )
     adjustment_tool = AdjustmentTool()
     adjusted = adjustment_tool.proportional_split_strategy(example_dataframe)
     print(adjustment_tool.dataframe)

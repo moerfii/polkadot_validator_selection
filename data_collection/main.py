@@ -1,23 +1,11 @@
 import json
 import os
-
-import numpy as np
 import pandas as pd
-from .src.get_data import NodeQuery
 from .src.get_snapshot import get_snapshot
 from .src.preprocessor import Preprocessor
-from .src.utils import (
-    read_json,
-    progress_of_loop,
-    read_parquet,
-    partition_into_batches,
-    set_era_range
-)
+from .src.utils import progress_of_loop
 import argparse
 from pathlib import Path
-from websocket._exceptions import WebSocketConnectionClosedException
-
-from sklearn.preprocessing import OneHotEncoder
 
 
 """
@@ -44,9 +32,8 @@ required_directories = [
     "data/stored_solutions_data/",
     "data/calculated_solutions_data/",
     "data/processed_data/",
-    "data/intermediate_results/"
+    "data/intermediate_results/",
 ]
-
 
 
 def get_model_1_data(era):
@@ -57,7 +44,10 @@ def get_model_1_data(era):
     snapshot = get_snapshot(era)
 
     # get indices
-    nominator_mapping, validator_mapping = Preprocessor().return_mapping_from_address_to_index(snapshot)
+    (
+        nominator_mapping,
+        validator_mapping,
+    ) = Preprocessor().return_mapping_from_address_to_index(snapshot)
 
     # save indices
     with open(f"{snapshot_path}{era}_nominator_mapping.json", "w") as f:
@@ -65,9 +55,13 @@ def get_model_1_data(era):
     with open(f"{snapshot_path}{era}_validator_mapping.json", "w") as f:
         json.dump(validator_mapping, f)
 
-    # calculate solution (phragmen)
-    json_winners, json_assignments = Preprocessor.calculate_optimal_solution(era, snapshot_path, iterations="400")
 
+def calculate_phragmen(era):
+    snapshot_path = "./data_collection/data/snapshot_data/"
+    # calculate solution (phragmen)
+    json_winners, json_assignments = Preprocessor.calculate_optimal_solution(
+        era, snapshot_path, iterations="400"
+    )
 
     # save solution
     calculated_solution_path = "./data_collection/data/calculated_solutions_data/"
@@ -77,12 +71,12 @@ def get_model_1_data(era):
         json.dump(json_assignments, f)
 
 
-
 def process_model_1_data(args):
     preprocessor = Preprocessor()
     progress_counter = 0
-    eras = set_era_range(args.era)
+    eras = range(args.era - 6, args.era + 1)
     for era in eras:
+        print(f"Processing era {era}")
         progress_counter = progress_of_loop(
             progress_counter, eras, "Preprocessing Model 1 Data"
         )
@@ -91,40 +85,43 @@ def process_model_1_data(args):
         preprocessor.save_dataframe(args.model_1_path)
 
 
-
 def process_model_2_data(args):
-        preprocessor = Preprocessor()
-        progress_counter = 0
-        eras = set_era_range(args.era)
-        for era in eras:
-            progress_counter = progress_of_loop(
-                progress_counter, eras, "Preprocessing Model 2 Data"
-            )
-            preprocessor.load_data(era)
-            preprocessor.preprocess_model_2_data()
-            preprocessor.save_dataframe(args.model_2_path)
-            preprocessor.group_bonds_by_validator()
-            preprocessor.save_dataframe(args.model_2_path + "_grouped")
-            preprocessor.preprocess_model_2_Xtest()
-            preprocessor.save_dataframe(args.model_2_path + "_Xtest")
-            preprocessor.group_bonds_by_validator_Xtest()
-            preprocessor.save_dataframe(args.model_2_path + "_grouped_Xtest")
+    preprocessor = Preprocessor()
+    progress_counter = 0
+    eras = range(args.era - 6, args.era + 1)
+    for era in eras:
+        print(f"Processing era {era}")
+        progress_counter = progress_of_loop(
+            progress_counter, eras, "Preprocessing Model 2 Data"
+        )
+        preprocessor.load_data(era)
+        preprocessor.preprocess_model_2_data()
+        preprocessor.save_dataframe(args.model_2_path)
+        preprocessor.group_bonds_by_validator()
+        preprocessor.save_dataframe(args.model_2_path + "_grouped")
 
+    preprocessor.load_data(args.era)
+    preprocessor.preprocess_model_2_Xtest()
+    preprocessor.save_dataframe(args.model_2_path + "_Xtest")
+    preprocessor.group_bonds_by_validator_Xtest()
+    preprocessor.save_dataframe(args.model_2_path + "_grouped_Xtest")
 
 
 def process_model_3_data(args):
     preprocessor = Preprocessor()
     progress_counter = 0
-    eras = set_era_range(args.era)
+    eras = range(args.era - 3, args.era + 1)
     for era in eras:
+        print(f"Processing era {era}")
         progress_counter = progress_of_loop(
             progress_counter, eras, "Preprocessing Model 3 Data"
         )
         preprocessor.load_data(era)
         preprocessor.preprocess_model_3_data()
         preprocessor.save_dataframe(args.model_3_path)
-        preprocessor.preprocess_model_3_data_Xtest()
-        preprocessor.save_dataframe(args.model_3_path + "_Xtest")
+    preprocessor.load_data(args.era)
+    preprocessor.preprocess_model_3_data_Xtest()
+    preprocessor.save_dataframe(args.model_3_path + "_Xtest")
 
 
 def get_ensemble_model_2_data(eras):
@@ -149,38 +146,30 @@ def get_ensemble_model_2_data(eras):
             inplace=True,
         )
         # remove rows that have a value below 0.5
-        solution_dataframe = pd.read_csv(
-            f"./data/model_2/{era}_max_min_stake.csv"
-        )
+        solution_dataframe = pd.read_csv(f"./data/model_2/{era}_max_min_stake.csv")
         solution_dataframe = solution_dataframe.drop(columns=["Unnamed: 0"])
         solution_dataframe = solution_dataframe.stack().reset_index()
         solution_dataframe.rename(columns={0: "solution_bond"}, inplace=True)
         total_dataframe = pd.concat([dataframe, solution_dataframe], axis=1)
         total_dataframe = total_dataframe.drop(columns=["level_0", "level_1"])
         # remove rows that have a value below 0.5
-        total_dataframe = total_dataframe[
-            total_dataframe["proportional_bond"] > 0.5
-        ]
+        total_dataframe = total_dataframe[total_dataframe["proportional_bond"] > 0.5]
 
         # group by nominator and get the count of rows to add to new column "nominator_count"
-        total_dataframe["nominator_count"] = total_dataframe.groupby(
+        total_dataframe["nominator_count"] = total_dataframe.groupby("nominator")[
             "nominator"
-        )["nominator"].transform("count")
+        ].transform("count")
 
         # add column era
         total_dataframe["era"] = era
 
         # save dataframe to csv
-        total_dataframe.to_csv(
-            f"./data/ensemble_model/{era}_voter_preferences.csv"
-        )
+        total_dataframe.to_csv(f"./data/ensemble_model/{era}_voter_preferences.csv")
         dataframes.append(total_dataframe)
     # concat all dataframes
     total_dataframe = pd.concat(dataframes)
     # save dataframe to csv
-    total_dataframe.to_csv(
-        f"./data/ensemble_model/total_voter_preferences.csv"
-    )
+    total_dataframe.to_csv("./data/ensemble_model/total_voter_preferences.csv")
 
 
 def environment_handler():
@@ -202,12 +191,8 @@ def setup():
         config = json.load(jsonfile)
     parser = argparse.ArgumentParser()
     parser.set_defaults(**config)
-    parser.add_argument(
-        "-m", "--mode", help="Select live or historic", type=str
-    )
-    parser.add_argument(
-        "-s", "--save", help="Provide path to save file", type=str
-    )
+    parser.add_argument("-m", "--mode", help="Select live or historic", type=str)
+    parser.add_argument("-s", "--save", help="Provide path to save file", type=str)
     parser.add_argument("-b", "--batch", help="Provide batch size", type=int)
     parser.add_argument(
         "-e",
@@ -227,14 +212,10 @@ def setup():
 def main(args):
     get_model_1_data(args)
     process_model_1_data(args)
-    #process_model_2_data(args)
-    #get_ensemble_model_2_data(args)
+    # process_model_2_data(args)
+    # get_ensemble_model_2_data(args)
 
 
 if __name__ == "__main__":
     parser = setup()
     main(parser.parse_args())
-
-
-
-

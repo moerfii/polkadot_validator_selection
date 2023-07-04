@@ -1,13 +1,14 @@
-import argparse
 import pickle
 
-import numpy as np
 import optuna
 from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import GroupShuffleSplit, TimeSeriesSplit
+from sklearn.model_selection import GroupShuffleSplit
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-from sklearn.ensemble import GradientBoostingRegressor, GradientBoostingClassifier
+from sklearn.ensemble import (
+    GradientBoostingRegressor,
+    GradientBoostingClassifier,
+)
 from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import Ridge, Lasso
 from sklearn.model_selection import KFold
@@ -20,7 +21,6 @@ from sklearn.compose import make_column_transformer
 from sklearn.metrics import mean_squared_error, accuracy_score
 from xgboost import XGBRegressor, XGBClassifier
 from sklearn.feature_selection import SelectKBest, f_regression
-from mlxtend.evaluate import GroupTimeSeriesSplit
 from sklearn.svm import SVC
 
 
@@ -41,8 +41,7 @@ class Model:
 
     def objective(self, trial):
         model_type = trial.suggest_categorical(
-            "regressor",
-            ["xgboost"] #["gradientboosting","lgbm", "xgboost"]
+            "regressor", ["xgboost"]  # ["gradientboosting","lgbm", "xgboost"]
         )
         if model_type == "randomforest":
             self.model = RandomForestRegressor(
@@ -79,12 +78,10 @@ class Model:
         elif model_type == "logistic":
             self.model = LogisticRegression(
                 C=trial.suggest_float("C", 0.01, 1.0),
-
             )
         elif model_type == "svc":
             self.model = SVC(
                 C=trial.suggest_float("C", 0.01, 1.0),
-
             )
         elif model_type == "randomforest_classifier":
             self.model = RandomForestClassifier(
@@ -115,7 +112,6 @@ class Model:
                 learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5),
                 random_state=42,
             )
-
 
     def objective_model_accuracy(self, trial):
         self.objective(trial)
@@ -151,18 +147,16 @@ class Model:
         :return:
         """
         adjustment_tool = AdjustmentTool()
-        adjusted_predicted_dataframe = (
-            adjustment_tool.proportional_split_strategy(predicted_dataframe)
+        adjusted_predicted_dataframe = adjustment_tool.proportional_split_strategy(
+            predicted_dataframe
         )
         return adjusted_predicted_dataframe
 
     @staticmethod
     def score(adjusted_predicted_dataframe):
         scorer = ScoringTool()
-        predicted_dataframe = (
-            scorer.dataframe_groupby_predictions_by_validators(
-                adjusted_predicted_dataframe
-            )
+        predicted_dataframe = scorer.dataframe_groupby_predictions_by_validators(
+            adjusted_predicted_dataframe
         )
         return scorer.score_solution(predicted_dataframe["prediction"])
 
@@ -171,7 +165,7 @@ class Model:
         feature selection
         :return:
         """
-        selector = SelectKBest(f_regression, k=5)
+        selector = SelectKBest(f_regression, k=4)
         selector.fit(self.X_train, self.y_train)
         self.X_train = selector.transform(self.X_train)
         self.X_test = selector.transform(self.X_test)
@@ -207,13 +201,9 @@ class Model:
         :return: X_train, X_test, y_train, y_test
         """
         drop_columns = self.X.select_dtypes(include=["object"]).columns
-        self.X_train = self.X[self.X["era"] != test_era].drop(
-            drop_columns, axis=1
-        )
+        self.X_train = self.X[self.X["era"] != test_era].drop(drop_columns, axis=1)
         self.X_train = self.X_train.drop(["era"], axis=1)
-        self.X_test = self.X[self.X["era"] == test_era].drop(
-            drop_columns, axis=1
-        )
+        self.X_test = self.X[self.X["era"] == test_era].drop(drop_columns, axis=1)
         self.X_test = self.X_test.drop(["era"], axis=1)
         self.y_train = self.y[self.X["era"] != test_era]
         self.y_test = self.y[self.X["era"] == test_era]
@@ -307,7 +297,11 @@ class Model:
             self.y_test = self.y.loc[self.X["era"] == test_era]
             self.scale_data()
             self.model.fit(self.X_train, self.y_train)
-            scores.append(mean_squared_error(self.y_test, self.model.predict(self.X_test), squared=False))
+            scores.append(
+                mean_squared_error(
+                    self.y_test, self.model.predict(self.X_test), squared=False
+                )
+            )
 
         return sum(scores) / len(scores)
 
@@ -358,9 +352,7 @@ class Model:
         identifies which columns are numeric and scales them
         :return:
         """
-        transform_columns = self.X_train.select_dtypes(
-            exclude=["object"]
-        ).columns
+        transform_columns = self.X_train.select_dtypes(exclude=["object"]).columns
         self.column_transformer = make_column_transformer(
             (
                 MinMaxScaler(),
@@ -397,47 +389,59 @@ class Model:
         elif model_type == "gradient_boosting":
             self.model = GradientBoostingRegressor(random_state=42)
         elif model_type == "gradient_boosting_classifier":
-            self.model = GradientBoostingClassifier(random_state=42,
-                                                    learning_rate=0.010105433442925346,
-                                                    max_depth=3,
-                                                    n_estimators=117)
+            self.model = GradientBoostingClassifier(
+                random_state=42,
+                learning_rate=0.010105433442925346,
+                max_depth=3,
+                n_estimators=117,
+            )
         elif model_type == "ridge":
             self.model = Ridge(random_state=42)
         elif model_type == "lasso":
             self.model = Lasso(random_state=42)
         elif model_type == "lgbm_model_2":
-            self.model = LGBMRegressor(random_state=42,
-                                        learning_rate=0.16718178232352315,
-                                        max_depth=10,
-                                        n_estimators=959
-                                       )
+            self.model = LGBMRegressor(
+                random_state=42,
+                learning_rate=0.16718178232352315,
+                max_depth=10,
+                n_estimators=959,
+            )
         elif model_type == "lgbm_model_3":
-            self.model = LGBMRegressor(random_state=42,
-                                        learning_rate=0.17732332270120013,
-                                        max_depth=10,
-                                        n_estimators=966
-                                       )
+            self.model = LGBMRegressor(
+                random_state=42,
+                learning_rate=0.17732332270120013,
+                max_depth=10,
+                n_estimators=966,
+            )
         elif model_type == "lgbm_classifier":
-            self.model = LGBMClassifier(random_state=42,
-                                        learning_rate=0.4614468946579767,
-                                        max_depth=4,
-                                        n_estimators=100)
+            self.model = LGBMClassifier(
+                random_state=42,
+                learning_rate=0.4614468946579767,
+                max_depth=4,
+                n_estimators=100,
+            )
         elif model_type == "xgboost_model_2":
-            self.model = XGBRegressor(random_state=42,
-                                       learning_rate=0.11471176253516005,
-                                       max_depth=10,
-                                       n_estimators=969)
+            self.model = XGBRegressor(
+                random_state=42,
+                learning_rate=0.11471176253516005,
+                max_depth=10,
+                n_estimators=969,
+            )
 
         elif model_type == "xgboost_model_3":
-            self.model = XGBRegressor(random_state=42,
-                                       learning_rate=0.10514508380628737,
-                                       max_depth=10,
-                                       n_estimators=905)
+            self.model = XGBRegressor(
+                random_state=42,
+                learning_rate=0.10514508380628737,
+                max_depth=10,
+                n_estimators=905,
+            )
         elif model_type == "xgboost_classifier":
-            self.model = XGBClassifier(random_state=42,
-                                       learning_rate=0.4930947860812882,
-                                       max_depth=8,
-                                       n_estimators=226)
+            self.model = XGBClassifier(
+                random_state=42,
+                learning_rate=0.4930947860812882,
+                max_depth=8,
+                n_estimators=226,
+            )
         elif model_type == "logistic_regression":
             self.model = LogisticRegression(random_state=42)
         else:
@@ -546,7 +550,7 @@ if __name__ == "__main__":
 
     type = "model_3"
     eras = 980
-    name= "xgboost_model_3"
+    name = "xgboost_model_3"
 
     dataframe = None
     features = None

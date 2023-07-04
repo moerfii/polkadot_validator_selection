@@ -1,10 +1,8 @@
 import json
 import ssl
 import time
-
 from substrateinterface import SubstrateInterface
 from collections import OrderedDict
-import subprocess
 
 
 class NodeQuery:
@@ -182,20 +180,15 @@ class NodeQuery:
             block_hash=self.block_hash,
         )
 
-
     def write_to_json(self, name, data_to_save, storage_path):
         file_path = storage_path + str(self.era) + name
         with open(file_path, "w", encoding="utf-8") as jsonfile:
-            jsonfile.write(
-                json.dumps(data_to_save, ensure_ascii=False, indent=4)
-            )
+            jsonfile.write(json.dumps(data_to_save, ensure_ascii=False, indent=4))
             jsonfile.close()
 
     def get_historical_snapshot(self):
         targets = self.get_targets()
-        voter_pointers_dict = self.__transform_to_ordereddict(
-            self.get_voterlist_bags()
-        )
+        voter_pointers_dict = self.__transform_to_ordereddict(self.get_voterlist_bags())
         full_voterlist = []
         for bag in voter_pointers_dict:
             if len(full_voterlist) == self.current_nominator_max:
@@ -216,9 +209,7 @@ class NodeQuery:
         for voter in full_voterlist:
             nominator = []
             bond = self.get_specific_nominator_exposure(voter)
-            specific_nominator_targets = self.get_specific_nominator_vote(
-                voter
-            )
+            specific_nominator_targets = self.get_specific_nominator_vote(voter)
             nominator.append(voter)
             nominator.append(bond)
             nominator.append(specific_nominator_targets)
@@ -244,7 +235,9 @@ if __name__ == "__main__":
     start = time.time()
     era = 986
     snapshot_instance.set_era(era)
-    json_winners, json_assignments = snapshot_instance.calculate_optimal_solution(f"../data/snapshot_data/", iterations="20000")
+    (json_winners, json_assignments,) = snapshot_instance.calculate_optimal_solution(
+        "../data/snapshot_data/", iterations="20000"
+    )
     end = time.time()
     print(f"Time taken: {end - start}")
     calculated_solution_path = "../data/calculated_solutions_data/"

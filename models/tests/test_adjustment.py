@@ -19,10 +19,8 @@ class AdjustmentTest(unittest.TestCase):
             }
         )
         adjustment_tool = AdjustmentTool(test_dataframe)
-        adjusted_dataframe = adjustment_tool.even_split_strategy(
-        )
+        adjusted_dataframe = adjustment_tool.even_split_strategy()
         self.assertEqual(adjusted_dataframe["prediction"].sum(), 120)
-
 
     def test_even_split_strategy_negative(self):
         test_dataframe = pd.DataFrame(
@@ -39,9 +37,9 @@ class AdjustmentTest(unittest.TestCase):
             }
         )
         adjustment_tool = AdjustmentTool(test_dataframe)
-        adjusted_dataframe = adjustment_tool.even_split_strategy(
-        )
+        adjusted_dataframe = adjustment_tool.even_split_strategy()
         self.assertFalse((adjusted_dataframe["prediction"].values < 0).any())
+
 
 if __name__ == "__main__":
     unittest.main()

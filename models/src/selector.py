@@ -1,7 +1,7 @@
 import json
 
 
-class Selector():
+class Selector:
     def __init__(self, era, models):
         self.era = era
         self.models = models
@@ -10,12 +10,10 @@ class Selector():
     def set_model_name(self, model_name):
         self.model_name = model_name
 
-
     def load_score(self):
         with open(f"../results/{self.model_name}_{self.era}_log.json", "r") as jsonfile:
             score = json.load(jsonfile)
             return score["model"], score["score_prediction"][0]
-
 
     def select_best_configuration(self):
         scores = {}
@@ -27,12 +25,6 @@ class Selector():
         print(f"Best model: {max(scores, key=scores.get)}")
 
 
-
-
-
-
-
-
 if __name__ == "__main__":
     eras = range(975, 990)
     models = ["lgbm", "random_forest", "xgboost"]
@@ -40,6 +32,3 @@ if __name__ == "__main__":
     for era in eras:
         selector = Selector(era, models)
         selector.select_best_configuration()
-
-
-

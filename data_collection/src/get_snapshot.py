@@ -1,7 +1,6 @@
 import ast
 
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import Column, Integer, JSON, Numeric, ForeignKey, text
 from sqlalchemy.orm import declarative_base
@@ -9,14 +8,16 @@ import json
 
 
 Base = declarative_base()
+
+
 class validator_pool(Base):
     __tablename__ = "validator_pool"
     era = Column(Integer, primary_key=True)
     data = Column(JSON)
 
-
     def __repr__(self):
         return f"Block {self.era}"
+
 
 class ValidatorPool(Base):
     __tablename__ = "validatorpool"
@@ -24,7 +25,11 @@ class ValidatorPool(Base):
     validator_payout = Column(Numeric(22, 0))
     treasury_payout = Column(Numeric(22, 0))
     total_stake = Column(Numeric(22, 0))
-    block_number = Column(Integer, ForeignKey("block.block_number", ondelete="CASCADE"), index=True)
+    block_number = Column(
+        Integer,
+        ForeignKey("block.block_number", ondelete="CASCADE"),
+        index=True,
+    )
 
 
 class RawData(Base):
@@ -32,9 +37,9 @@ class RawData(Base):
     block_number = Column(Integer, primary_key=True)
     data = Column(JSON)
 
-
     def __repr__(self):
         return f"Block {self.block_number}"
+
 
 def query(era_block_dict, block_numbers, era):
     era_start_block_number = era_block_dict[era]
@@ -49,28 +54,32 @@ def query(era_block_dict, block_numbers, era):
     if block_number is None:
         raise Exception("Block number not found")
 
-    SNAPSHOT_DB_URL = f"postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/snapshot"
+    SNAPSHOT_DB_URL = (
+        "postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/snapshot"
+    )
     engine = create_engine(
         SNAPSHOT_DB_URL,
     )
     SessionLocal = sessionmaker(autoflush=True, bind=engine)
     db = SessionLocal()
 
-    query = text(f'SELECT * FROM raw_data WHERE block_number = {block_number} ')
+    query = text(f"SELECT * FROM raw_data WHERE block_number = {block_number} ")
 
     snapshot = db.execute(query).first()[1]
     return ast.literal_eval(snapshot)
 
 
 def get_era_block_dict():
-    SNAPSHOT_DB_URL = f"postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/polkadot_uuid"
+    SNAPSHOT_DB_URL = (
+        "postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/polkadot_uuid"
+    )
     engine = create_engine(
         SNAPSHOT_DB_URL,
     )
     SessionLocal = sessionmaker(autoflush=True, bind=engine)
     db = SessionLocal()
 
-    sql = text('select * from validator_pool')
+    sql = text("select * from validator_pool")
     result = db.execute(sql)
     data = result.fetchall()
 
@@ -87,21 +96,27 @@ def get_snapshot(era):
 
     snapshot = query(era_block_dict, block_numbers, era)
 
-    with open(f"./data_collection/data/snapshot_data/{era}_snapshot.json", "w", encoding="utf-8") as f:
+    with open(
+        f"./data_collection/data/snapshot_data/{era}_snapshot.json",
+        "w",
+        encoding="utf-8",
+    ) as f:
         f.write(json.dumps(snapshot, ensure_ascii=False, indent=4))
     return snapshot
 
+
 if __name__ == "__main__":
 
-
-    SNAPSHOT_DB_URL = f"postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/polkadot_uuid"
+    SNAPSHOT_DB_URL = (
+        "postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/polkadot_uuid"
+    )
     engine = create_engine(
         SNAPSHOT_DB_URL,
     )
     SessionLocal = sessionmaker(autoflush=True, bind=engine)
     db = SessionLocal()
 
-    sql = text('select * from validator_pool')
+    sql = text("select * from validator_pool")
     result = db.execute(sql)
     data = result.fetchall()
 
@@ -128,23 +143,24 @@ if __name__ == "__main__":
         if block_number is None:
             raise Exception("Block number not found")
 
-
-
-
-        SNAPSHOT_DB_URL = f"postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/snapshot"
+        SNAPSHOT_DB_URL = (
+            "postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/snapshot"
+        )
         engine = create_engine(
             SNAPSHOT_DB_URL,
         )
         SessionLocal = sessionmaker(autoflush=True, bind=engine)
         db = SessionLocal()
 
+        block_query = text(
+            f"SELECT * FROM raw_data WHERE block_number = {block_number} "
+        )
 
-        query = text(f'SELECT * FROM raw_data WHERE block_number = {block_number} ')
-
-        snapshot = db.execute(query).first()[1]
+        snapshot = db.execute(block_query).first()[1]
         snapshot = ast.literal_eval(snapshot)
 
-        with open(f"../data/snapshot_data/{era}_snapshot.json", "w", encoding="utf-8") as f:
+        with open(
+            f"../data/snapshot_data/{era}_snapshot.json", "w", encoding="utf-8"
+        ) as f:
             f.write(json.dumps(snapshot, ensure_ascii=False, indent=4))
         print(f"Saved {era}")
-

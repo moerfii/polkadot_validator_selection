@@ -1,8 +1,6 @@
 import json
 import numpy as np
-import pandas as pd
-from pulp import LpProblem, LpMaximize, LpMinimize, LpVariable, lpSum, value
-from sklearn import preprocessing
+from pulp import LpProblem, LpMaximize, LpVariable, lpSum, value
 
 
 def solve_validator_selection(snapshot, winners):
@@ -40,12 +38,10 @@ def solve_validator_selection(snapshot, winners):
                 pass
 
     # drop rows with all zeros
-    voter_preferences = voter_preferences[
-        ~np.all(voter_preferences == 0, axis=1)
-    ]
+    voter_preferences = voter_preferences[~np.all(voter_preferences == 0, axis=1)]
 
     # previous distribution
-    prior_to_optimisation = voter_preferences.sum(axis=0)
+    voter_preferences.sum(axis=0)
 
     zero_mask = voter_preferences == 0
     # create the variables to be optimised, it should be in the shape of the matrix
@@ -95,7 +91,7 @@ def solve_validator_selection(snapshot, winners):
     # solve the problem
     prob.solve()
 
-    posterior_to_optimisation = np.array(
+    np.array(
         [
             x[(i, j)].varValue
             for i in range(len(nominator_names))

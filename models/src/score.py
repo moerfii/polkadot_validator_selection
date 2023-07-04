@@ -39,23 +39,17 @@ class ScoringUtility:
             print("Bad solution stored")
             return True
         # compare min stake: goal is to maximise: if calculated is worse return False
-        print(
-            f"stored min: {scores2_array[0]}, predicted min: {int(scores1_array[0])}"
-        )
+        print(f"stored min: {scores2_array[0]}, predicted min: {int(scores1_array[0])}")
         if scores2_array[0] > int(scores1_array[0]):
             return False
 
         # compare sum stakes: goal is to maximise: if calculated is worse return False
-        print(
-            f"stored sum: {scores2_array[1]}, predicted sum: {int(scores1_array[1])}"
-        )
+        print(f"stored sum: {scores2_array[1]}, predicted sum: {int(scores1_array[1])}")
         if scores2_array[1] > int(scores1_array[1]):
             return False
 
         # compare variance of stakes: goal is to minimise: if calculated is worse return False
-        print(
-            f"stored var: {scores2_array[2]}, predicted var: {int(scores1_array[2])}"
-        )
+        print(f"stored var: {scores2_array[2]}, predicted var: {int(scores1_array[2])}")
         if scores2_array[2] < int(scores1_array[2]):
             return False
         return True
@@ -80,11 +74,7 @@ class ScoringTool:
         """
         Groups the predictions by the validator (sums up) and returns a dataframe
         """
-        return (
-            dataframe.loc[:, ["validator", "prediction"]]
-            .groupby("validator")
-            .sum()
-        )
+        return dataframe.loc[:, ["validator", "prediction"]].groupby("validator").sum()
 
 
 if __name__ == "__main__":
@@ -100,9 +90,7 @@ if __name__ == "__main__":
     for dir in dirs1:
         print(dir)
         path = "../data/stored_solutions_data/" + dir
-        scores2.append(
-            np.asarray(scorer.read_json(path)["raw_solution"]["score"])
-        )
+        scores2.append(np.asarray(scorer.read_json(path)["raw_solution"]["score"]))
 
     for index, value in enumerate(scores1):
         print(index)
