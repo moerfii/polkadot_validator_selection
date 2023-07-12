@@ -14,6 +14,7 @@ from sklearn.linear_model import Ridge, Lasso
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import MinMaxScaler
 from lightgbm.sklearn import LGBMRegressor, LGBMClassifier
+import lightgbm as lgb
 import pandas as pd
 from src.score import ScoringTool
 from src.adjustment import AdjustmentTool
@@ -41,7 +42,7 @@ class Model:
 
     def objective(self, trial):
         model_type = trial.suggest_categorical(
-            "regressor", ["xgboost"]  # ["gradientboosting","lgbm", "xgboost"]
+            "regressor", ["lgbm"]  # ["gradientboosting","lgbm", "xgboost"]
         )
         if model_type == "randomforest":
             self.model = RandomForestRegressor(
@@ -66,6 +67,14 @@ class Model:
                 max_depth=trial.suggest_int("max_depth", 3, 10),
                 learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5),
                 random_state=42,
+                metric="rmse",
+                reg_alpha=trial.suggest_float("reg_alpha", 1e-8, 1.0),
+                reg_lambda=trial.suggest_float("reg_lambda", 1e-8, 1.0),
+                colsample_bytree=trial.suggest_categorical("colsample_bytree", [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]),
+                subsample=trial.suggest_categorical("subsample", [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]),
+                num_leaves=trial.suggest_int("num_leaves", 2, 256),
+                min_child_samples=trial.suggest_int("min_child_samples", 5, 100),
+                cat_smooth=trial.suggest_int("cat_smooth", 10, 100)
             )
         elif model_type == "xgboost":
             self.model = XGBRegressor(
@@ -98,12 +107,20 @@ class Model:
                 random_state=42,
             )
 
-        elif model_type == "lbgm_classifier":
+        elif model_type == "lgbm_classifier":
             self.model = LGBMClassifier(
                 n_estimators=trial.suggest_int("n_estimators", 100, 1000),
                 max_depth=trial.suggest_int("max_depth", 3, 10),
                 learning_rate=trial.suggest_float("learning_rate", 0.01, 0.5),
                 random_state=42,
+                metric="rmse",
+                reg_alpha=trial.suggest_float("reg_alpha", 1e-8, 1.0),
+                reg_lambda=trial.suggest_float("reg_lambda", 1e-8, 1.0),
+                colsample_bytree=trial.suggest_categorical("colsample_bytree", [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]),
+                subsample=trial.suggest_categorical("subsample", [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]),
+                num_leaves=trial.suggest_int("num_leaves", 2, 256),
+                min_child_samples=trial.suggest_int("min_child_samples", 5, 100),
+                cat_smooth=trial.suggest_int("cat_smooth", 10, 100)
             )
         elif model_type == "xgboost_classifier":
             self.model = XGBClassifier(
@@ -133,7 +150,7 @@ class Model:
 
     def objective_model_accuracy_time_series(self, trial):
         self.objective(trial)
-        return self.cross_validate_time_series_accuracy()
+        return self.cross_validate_time_series_accuracy(trial)
 
     def objective_score_boosting(self, trial):
         self.objective(trial)
@@ -264,11 +281,13 @@ class Model:
             )
             self.y_test = self.y.loc[self.X["era"] == test_era]
             self.scale_data()
-            self.model.fit(self.X_train, self.y_train)
+            self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_test, self.y_test)],
+                           callbacks=[lgb.early_stopping(stopping_rounds=100, verbose=False)]
+                           )
             scores.append(accuracy_score(self.y_test, self.model.predict(self.X_test)))
         return sum(scores) / len(scores)
 
-    def cross_validate_time_series_accuracy(self):
+    def cross_validate_time_series_accuracy(self, trial):
         """
         cross validation with time series split
         :return:
@@ -296,7 +315,9 @@ class Model:
             )
             self.y_test = self.y.loc[self.X["era"] == test_era]
             self.scale_data()
-            self.model.fit(self.X_train, self.y_train)
+            self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_test, self.y_test)],
+                           callbacks=[lgb.early_stopping(stopping_rounds=100, verbose=False)]
+                           )
             scores.append(
                 mean_squared_error(
                     self.y_test, self.model.predict(self.X_test), squared=False
@@ -333,7 +354,9 @@ class Model:
             )
             self.y_test = self.y.loc[self.X["era"] == test_era]
             self.scale_data()
-            self.model.fit(self.X_train, self.y_train)
+            self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_test, self.y_test)],
+                           callbacks=[lgb.early_stopping(stopping_rounds=100, verbose=False)]
+                           )
             predicted_dataframe = pd.concat(
                 [
                     self.X.loc[self.X["era"] == test_era],
@@ -342,9 +365,11 @@ class Model:
                 axis=1,
             )
             predicted_dataframe["prediction"] = self.model.predict(self.X_test)
+
             adjusted_predicted_dataframe = self.adjust(predicted_dataframe)
             score_of_prediction = self.score(adjusted_predicted_dataframe)
-            scores.append(score_of_prediction[1])
+            scores.append(score_of_prediction[0])
+            print(scores)
         return sum(scores) / len(scores)
 
     def scale_data(self):
@@ -402,23 +427,46 @@ class Model:
         elif model_type == "lgbm_model_2":
             self.model = LGBMRegressor(
                 random_state=42,
-                learning_rate=0.16718178232352315,
+                learning_rate=0.2782660578942761,
                 max_depth=10,
-                n_estimators=959,
+                n_estimators=942,
+                cat_smooth=67,
+                colsample_bytree=1.0,
+                min_child_samples=56,
+                num_leaves=228,
+                reg_alpha=0.2910117262120762,
+                reg_lambda=0.09647706380250089,
+                subsample=0.7,
+                objective="poisson"
             )
         elif model_type == "lgbm_model_3":
             self.model = LGBMRegressor(
                 random_state=42,
-                learning_rate=0.17732332270120013,
-                max_depth=10,
-                n_estimators=966,
+                cat_smooth=30,
+                colsample_bytree=0.7,
+                learning_rate=0.24547405408632758,
+                max_depth=4,
+                min_child_samples=11,
+                n_estimators=491,
+                num_leaves=105,
+                reg_alpha=0.8856727831958183,
+                reg_lambda=0.9373598119933504,
+                subsample=1.0,
+                objective="poisson"
             )
         elif model_type == "lgbm_classifier":
             self.model = LGBMClassifier(
                 random_state=42,
-                learning_rate=0.4614468946579767,
-                max_depth=4,
-                n_estimators=100,
+                cat_smooth=69,
+                colsample_bytree=0.7,
+                learning_rate=0.44760623102279595,
+                max_depth=3,
+                min_child_samples=87,
+                n_estimators=556,
+                num_leaves=65,
+                reg_alpha=0.10909587064492554,
+                reg_lambda=0.6884682800432496,
+                subsample=0.6
             )
         elif model_type == "xgboost_model_2":
             self.model = XGBRegressor(
@@ -550,7 +598,7 @@ if __name__ == "__main__":
 
     type = "model_3"
     eras = 980
-    name = "xgboost_model_3"
+    name = "lgbm_model_3_real_vectors_early_stopping"
 
     dataframe = None
     features = None
@@ -565,11 +613,11 @@ if __name__ == "__main__":
 
     model = Model(dataframe, target, features)
 
-    if type == "model_2" or type == "model_3":
-        model.divide_target_by_total_bond()
+    #if type == "model_2" or type == "model_3":
+    #    model.divide_target_by_total_bond()
 
     direction = None
-    if type == "model_2":
+    if type == "model_2" or type == "model_3": # remove or type == "model_3":
         direction = "minimize"
     else:
         direction = "maximize"
@@ -588,9 +636,9 @@ if __name__ == "__main__":
     elif type == "model_3":
         objective = model.objective_score_boosting
 
-    study.optimize(objective, n_trials=1000)
+    study.optimize(objective, n_trials=100)
     print(f"Best value: {study.best_value} (params: {study.best_params})")
-
+    study.trials_dataframe()
     """
 
     from sklearn.linear_model import QuantileRegressor
@@ -677,6 +725,7 @@ if __name__ == "__main__":
     accuracy = mean_squared_error(votingregressor.predict(X_test), y_test)
     print(f"accuracy: {accuracy}")
     print()
+    
 
     """
     """
