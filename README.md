@@ -84,6 +84,8 @@ As Polkadot is growing, it becomes evident that a need for scaling of the stakin
     "plot": null,
   "save": null,
 
+  "adjust": "vectorized",    # ["vectorized, "single", "multiprocessing"]
+
 ###########################################################################
 Only necessary if you prefer to pull data via storage queries.
   "node": {
