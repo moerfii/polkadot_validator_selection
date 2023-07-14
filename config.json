@@ -68,10 +68,12 @@
     "plot": null,
   "save": null,
 
+  "adjust": "vectorized",
+
   "node": {
     "url": "wss://rpc.polkadot.io",
     "ss58_format": 0,
     "type_registry_preset": "polkadot"
-  },
+  }
 
 }

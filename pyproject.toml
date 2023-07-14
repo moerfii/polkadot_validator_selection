@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "main"
+version = "0.1"
+readme = "README.md"
+requires-python = ">=3.8.10"
+dependencies = ["numpy>=1.23.5", "pandas>=1.5.2", "substrate-interface>=1.4.2", "pyarrow>=11.0.0", "sqlalchemy>=2.0.18",
+"networkx>=3.1", "networkit>=10.1", "matplotlib>=3.7.2", "cvxpy>=1.3.2", "optuna>=3.2.0", "scikit-learn>=1.3.0",
+"lightgbm>=4.0.0", "xgboost>=1.7.6"]
+
+[project.optional-dependencies]
+dev = [
+  "black>=23.1.0",
+  "ruff>=0.0.47",
+  "pip-tools>=6.12.3",
+]
+
+[tool.ruff]
+line-length = 79
+ignore = ["E501"]
+exclude = [".env", ".venv", "venv", "notebooks"]
+
+[tool.coverage.paths]
+source = ["src"]
+
+[tool.coverage.run]
+branch = true
+relative_files = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
+
+[tool.black]
+line-length = 79
+extend-exclude = '''
+/(
+  | .env
+  | .venv
+  | venv
+  | notebooks
+)/
+'''

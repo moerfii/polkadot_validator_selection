@@ -365,7 +365,7 @@ class AdjustmentTool:
 
         return dataframe
 
-    def proportional_split_strategy(self, dataframe):
+    def proportional_split_strategy(self, dataframe, args):
         """
         This function groups by nominator, sums up the prediction values, compares with the total bond (which is the 100% benchmark) and adjusts the prediction values accordingly
         There are two cases:
@@ -383,41 +383,43 @@ class AdjustmentTool:
         dataframe.reset_index(drop=True, inplace=True)
 
         dataframe = self.preadjustment(dataframe)
-        #return self.apply_proportional_split_strategy_vectorized(dataframe)
-
-
-
-        # this is the single process version // DEBUGGING only
-        start = time.time()
-        results = []
-        dataframe = self.calculate_difference_expected_sum_stake_and_prediction(
-            dataframe
-        )
         nominators = dataframe["nominator"].unique()
-        counter = 0
-        for nominator in nominators:
-            counter += 1
-            #print(f"nominator {counter} of {len(nominators)}")
-            dataframe, nominator_df = self.apply_proportional_split_strategy(nominator, dataframe)
-            results.append(nominator_df)
 
-        end = time.time()
-        print(f"single process version took {end - start} seconds")
-        return pd.concat(results)
-        """
-        # this is the multiprocessing version
-        #with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
-            results = pool.starmap(
-                self.apply_proportional_split_strategy,
-                [(nominator, dataframe) for nominator in nominators],
+        if args.adjust == "vectorized":
+            return self.apply_proportional_split_strategy_vectorized(dataframe)
+
+
+        if args.adjust == "single":
+            # this is the single process version // DEBUGGING only
+            start = time.time()
+            results = []
+            dataframe = self.calculate_difference_expected_sum_stake_and_prediction(
+                dataframe
             )
-        # unpack results
-        results = [result[1] for result in results]
+            nominators = dataframe["nominator"].unique()
+            counter = 0
+            for nominator in nominators:
+                counter += 1
+                #print(f"nominator {counter} of {len(nominators)}")
+                dataframe, nominator_df = self.apply_proportional_split_strategy(nominator, dataframe)
+                results.append(nominator_df)
 
+            end = time.time()
+            print(f"single process version took {end - start} seconds")
+            return pd.concat(results)
+        if args.adjust == "multiprocessing":
+            # this is the multiprocessing version
+            with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
+                results = pool.starmap(
+                    self.apply_proportional_split_strategy,
+                    [(nominator, dataframe) for nominator in nominators],
+                )
+            # unpack results
+            results = [result[1] for result in results]
 
-        adjusted_dataframe = pd.concat(results)
+            adjusted_dataframe = pd.concat(results)
 
-        return adjusted_dataframe"""
+            return adjusted_dataframe
 
     def add_removed_rows(self):
         """

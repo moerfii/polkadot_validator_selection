@@ -16,8 +16,8 @@ from sklearn.preprocessing import MinMaxScaler
 from lightgbm.sklearn import LGBMRegressor, LGBMClassifier
 import lightgbm as lgb
 import pandas as pd
-from src.score import ScoringTool
-from src.adjustment import AdjustmentTool
+from .score import ScoringTool
+from .adjustment import AdjustmentTool
 from sklearn.compose import make_column_transformer
 from sklearn.metrics import mean_squared_error, accuracy_score
 from xgboost import XGBRegressor, XGBClassifier

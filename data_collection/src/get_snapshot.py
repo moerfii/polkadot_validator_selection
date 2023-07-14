@@ -9,7 +9,7 @@ import json
 
 Base = declarative_base()
 
-with open("../../config.json", "r") as f:
+with open("config.json", "r") as f:
     credentials = json.load(f)
     username = credentials["username"]
     password = credentials["password"]

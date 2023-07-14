@@ -4,9 +4,9 @@ import pickle
 
 import pandas as pd
 import matplotlib.pyplot as plt
-from src.adjustment import AdjustmentTool
-from src.score import ScoringTool, ScoringUtility
-from src.model import Model
+from .src.adjustment import AdjustmentTool
+from .src.score import ScoringTool, ScoringUtility
+from .src.model import Model
 from sklearn.metrics import mean_squared_error
 import lightgbm as lgb
 
@@ -170,7 +170,7 @@ def predict_model_3_Xtest(args):
     predicted_dataframe["prediction"] = predicted_dataframe["prediction"].astype(int)
     print("predictions made")
 
-    adjusted_predicted_dataframe = adjust(predicted_dataframe)
+    adjusted_predicted_dataframe = adjust(predicted_dataframe, args)
     print("predictions adjusted")
 
     # score predictions
@@ -217,13 +217,13 @@ def prepare(path=None, target_column="solution_bond", features=None, era=None):
     return model
 
 
-def adjust(predicted_dataframe):
+def adjust(predicted_dataframe, args):
     """
     adjust predictions to 100%
     :return: adjusted dataframe
     """
     adj = AdjustmentTool()
-    return adj.proportional_split_strategy(predicted_dataframe)
+    return adj.proportional_split_strategy(predicted_dataframe, args)
 
 
 def score(adjusted_predicted_dataframe):
