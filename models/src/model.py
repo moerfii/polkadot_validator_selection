@@ -38,6 +38,7 @@ class Model:
         self.y_train = None
         self.y_test = None
         self.total_bond = None
+        self.column_transformer = None
         self.preprocess_data()
 
     def objective(self, trial):
@@ -74,7 +75,8 @@ class Model:
                 subsample=trial.suggest_categorical("subsample", [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]),
                 num_leaves=trial.suggest_int("num_leaves", 2, 256),
                 min_child_samples=trial.suggest_int("min_child_samples", 5, 100),
-                cat_smooth=trial.suggest_int("cat_smooth", 10, 100)
+                cat_smooth=trial.suggest_int("cat_smooth", 10, 100),
+                objective="poisson"
             )
         elif model_type == "xgboost":
             self.model = XGBRegressor(
@@ -182,7 +184,7 @@ class Model:
         feature selection
         :return:
         """
-        selector = SelectKBest(f_regression, k=4)
+        selector = SelectKBest(f_regression, k=3)
         selector.fit(self.X_train, self.y_train)
         self.X_train = selector.transform(self.X_train)
         self.X_test = selector.transform(self.X_test)
@@ -293,30 +295,32 @@ class Model:
         :return:
         """
         splits = sorted(self.X["era"].unique())
-        max_training_size = len(splits) - 1
-        length_initial_training = 3
+        folds = 5
+        length_initial_training = 200
         drop_columns = self.X.select_dtypes(include=["object"]).columns
         scores = []
-        for i in range(max_training_size - length_initial_training):
-            training_era_bottom = splits[length_initial_training - 3]
-            training_era_top = splits[length_initial_training]
-            length_initial_training += 1
+        for i in range(folds):
+            training_era_bottom = splits[length_initial_training - 100]
+            training_era_top = splits[length_initial_training - 1]
             test_era = splits[length_initial_training]
-
+            length_initial_training += 1
             self.X_train = self.X.loc[self.X["era"] <= training_era_top].drop(
                 drop_columns, axis=1
             )
             self.y_train = self.y.loc[self.X["era"] <= training_era_top]
             self.y_train = self.y_train.loc[self.X_train["era"] >= training_era_bottom]
             self.X_train = self.X_train.loc[self.X_train["era"] >= training_era_bottom]
-
             self.X_test = self.X.loc[self.X["era"] == test_era].drop(
                 drop_columns, axis=1
             )
             self.y_test = self.y.loc[self.X["era"] == test_era]
+            self.X_train.drop("era", axis=1, inplace=True)
+            self.X_test.drop("era", axis=1, inplace=True)
+
             self.scale_data()
+            #self.feature_selection()
             self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_test, self.y_test)],
-                           callbacks=[lgb.early_stopping(stopping_rounds=100, verbose=False)]
+                           callbacks=[lgb.early_stopping(stopping_rounds=100, verbose=True)]
                            )
             scores.append(
                 mean_squared_error(
@@ -338,7 +342,7 @@ class Model:
         scores = []
         for i in range(max_training_size - length_initial_training):
             training_era_bottom = splits[length_initial_training - 3]
-            training_era_top = splits[length_initial_training]
+            training_era_top = splits[length_initial_training - 1]
             length_initial_training += 1
             test_era = splits[length_initial_training]
 
@@ -364,11 +368,13 @@ class Model:
                 ],
                 axis=1,
             )
+            scores.append(mean_squared_error(self.y_test, self.model.predict(self.X_test), squared=False))
+            """
             predicted_dataframe["prediction"] = self.model.predict(self.X_test)
 
             adjusted_predicted_dataframe = self.adjust(predicted_dataframe)
             score_of_prediction = self.score(adjusted_predicted_dataframe)
-            scores.append(score_of_prediction[0])
+            scores.append(score_of_prediction[0])"""
             print(scores)
         return sum(scores) / len(scores)
 
@@ -377,24 +383,34 @@ class Model:
         identifies which columns are numeric and scales them
         :return:
         """
-        transform_columns = self.X_train.select_dtypes(exclude=["object"]).columns
-        self.column_transformer = make_column_transformer(
-            (
-                MinMaxScaler(),
-                transform_columns,
-            ),
-            remainder="passthrough",
-        )
+        if self.column_transformer is None:
+            transform_columns = self.X_train.select_dtypes(exclude=["object"]).columns
+            self.column_transformer = make_column_transformer(
+                (
+                    MinMaxScaler(),
+                    transform_columns,
+                ),
+                remainder="passthrough",
+            )
+
         self.X_train = self.column_transformer.fit_transform(self.X_train)
         self.X_test = self.column_transformer.transform(self.X_test)
 
-    def save_trained_model(self):
+    def save_trained_model(self, name):
         """
         save trained model
         :return:
         """
-        filename = f"../models/trained_models/{type(self.model).__name__}.sav"
+        filename = f"../trained_models/{name}.pkl"
         pickle.dump(self.model, open(filename, "wb"))
+
+    def save_scaler(self, name):
+        """
+        save trained model
+        :return:
+        """
+        filename = f"../trained_models/{name}.pkl"
+        pickle.dump(self.column_transformer, open(filename, "wb"))
 
     def load_trained_model(self, model_name):
 
@@ -427,32 +443,37 @@ class Model:
         elif model_type == "lgbm_model_2":
             self.model = LGBMRegressor(
                 random_state=42,
-                learning_rate=0.2782660578942761,
-                max_depth=10,
-                n_estimators=942,
-                cat_smooth=67,
+                cat_smooth=64,
                 colsample_bytree=1.0,
-                min_child_samples=56,
-                num_leaves=228,
-                reg_alpha=0.2910117262120762,
-                reg_lambda=0.09647706380250089,
-                subsample=0.7,
-                objective="poisson"
+                learning_rate=0.10837785148000703,
+                max_depth=10,
+                min_child_samples=10,
+                n_estimators=730,
+                num_leaves=216,
+                reg_alpha=0.6330795286590103,
+                reg_lambda=0.2770756544189646,
+                subsample=0.5,
+                objective="poisson",
+
+
             )
         elif model_type == "lgbm_model_3":
+
             self.model = LGBMRegressor(
                 random_state=42,
-                cat_smooth=30,
-                colsample_bytree=0.7,
-                learning_rate=0.24547405408632758,
-                max_depth=4,
+                cat_smooth=42,
+                colsample_bytree=0.6,
+                learning_rate=0.017729352667401443,
+                max_depth=10,
                 min_child_samples=11,
-                n_estimators=491,
-                num_leaves=105,
-                reg_alpha=0.8856727831958183,
-                reg_lambda=0.9373598119933504,
-                subsample=1.0,
-                objective="poisson"
+                n_estimators=979,
+                num_leaves=253,
+                reg_alpha=0.3815954846018609,
+                reg_lambda=0.44273999607539605,
+                subsample=0.6
+
+
+
             )
         elif model_type == "lgbm_classifier":
             self.model = LGBMClassifier(
@@ -537,10 +558,10 @@ def optuna_model_1(eras):
 
 def optuna_model_2(eras):
     training_dataframes = []
-    for era in range(eras - 8, eras):
+    for era in range(eras - 250, eras+1):
         training_dataframes.append(
             pd.read_csv(
-                f"../../data_collection/data/processed_data/model_2_data_{era}.csv"
+                f"../../data_collection/data/processed_data/model_2_data_grouped_{era}.csv"
             )
         )
 
@@ -551,8 +572,9 @@ def optuna_model_2(eras):
         "proportional_bond",
         "total_bond",
         "validator_frequency_current_era",
+        "validator_centrality",
         "probability_of_selection",
-        "era",
+        "era"
     ]
     target = "solution_bond"
 
@@ -596,9 +618,9 @@ def optuna_model_3(eras):
 
 if __name__ == "__main__":
 
-    type = "model_3"
-    eras = 980
-    name = "lgbm_model_3_real_vectors_early_stopping"
+    type = "model_2"
+    eras = 999
+    name = "lgbm_model_2_poisson_200"
 
     dataframe = None
     features = None
@@ -613,11 +635,8 @@ if __name__ == "__main__":
 
     model = Model(dataframe, target, features)
 
-    #if type == "model_2" or type == "model_3":
-    #    model.divide_target_by_total_bond()
-
     direction = None
-    if type == "model_2" or type == "model_3": # remove or type == "model_3":
+    if type == "model_2" or type == "model_3":
         direction = "minimize"
     else:
         direction = "maximize"
@@ -636,124 +655,7 @@ if __name__ == "__main__":
     elif type == "model_3":
         objective = model.objective_score_boosting
 
-    study.optimize(objective, n_trials=100)
+    study.optimize(objective, n_trials=1000)
     print(f"Best value: {study.best_value} (params: {study.best_params})")
     study.trials_dataframe()
-    """
 
-    from sklearn.linear_model import QuantileRegressor
-
-    dataframe = pd.read_csv(
-        "../../data_collection/data/ensemble_model/total_voter_preferences.csv"
-    )
-
-    dataframe.drop(["Unnamed: 0"], axis=1, inplace=True)
-    features = [
-        "nominator",
-        "validator",
-        "proportional_bond",
-        "era"
-    ]
-    X = dataframe.loc[:, features]
-    y = dataframe.loc[:, "solution_bond"]
-    X_train = X[X["era"] != 994].drop(["era", "nominator", "validator"], axis=1)
-    y_train = y[X["era"] != 994]
-    X_test = X[X["era"] == 994].drop(["era", "nominator", "validator"], axis=1)
-    y_test = y[X["era"] == 994]
-    scaler = MinMaxScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-
-    # reduce X_train rows to 10000
-    X_train = X_train[:10000]
-    y_train = y_train[:10000]
-
-    model = QuantileRegressor(solver="highs")
-    model.fit(X_train, y_train)
-    predicted_dataframe = pd.concat(
-        [X[X["era"] == 994], y[X["era"] == 994]], axis=1
-    )
-    predicted_dataframe["prediction"] = model.predict(X_test)
-    accuracy = mean_squared_error(model.predict(X_test), y_test)
-    print(accuracy)
-    """
-
-    """
-    dataframe2 = pd.read_csv("../../data_collection/data/model_2/df_bond_distribution_testing_0.csv")
-    dataframe2.drop(["Unnamed: 0"], axis=1, inplace=True)
-    # divide solution_bond by total_bond
-    dataframe2["solution_bond"] = dataframe2["solution_bond"] / dataframe2["total_bond"]
-    features = [
-        "nominator",
-        "validator",
-        "proportional_bond",
-        "total_bond",
-        "era"
-    ]
-    X = dataframe2.loc[:, features]
-    y = dataframe2.loc[:, "solution_bond"]
-    X_train = X[X["era"] != 994].drop(["era", "nominator", "validator"], axis=1)
-    y_train = y[X["era"] != 994]
-    X_test = X[X["era"] == 994].drop(["era", "nominator", "validator"], axis=1)
-    y_test = y[X["era"] == 994]
-    scaler = MinMaxScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-
-    model2 = GradientBoostingRegressor()
-    model2.fit(X_train, y_train)
-    predicted_dataframe = pd.concat(
-        [X[X["era"] == 994], y[X["era"] == 994]], axis=1
-    )
-    predicted_dataframe["prediction"] = model2.predict(X_test)
-    accuracy = mean_squared_error(model2.predict(X_test), y_test)
-    print(accuracy)
-    # multiply prediction by total_bond
-    predicted_dataframe["prediction"] = predicted_dataframe["prediction"] * dataframe2["total_bond"]
-    adjusted_predicted_dataframe = Model.adjust(predicted_dataframe)
-    score = Model.score(adjusted_predicted_dataframe)
-
-
-
-    from sklearn.ensemble import VotingRegressor
-    votingregressor = VotingRegressor(estimators=[("model1", model), ("model2", model2)])
-    votingregressor.fit(X_train, y_train)
-    predicted_dataframe = pd.concat(
-        [X[X["era"] == 994], y[X["era"] == 994]], axis=1
-    )
-    predicted_dataframe["prediction"] = votingregressor.predict(X_test)
-    accuracy = mean_squared_error(votingregressor.predict(X_test), y_test)
-    print(f"accuracy: {accuracy}")
-    print()
-    
-
-    """
-    """
-    import numpy as np
-    import pandas as pd
-    import matplotlib.pyplot as plt
-    import statsmodels.api as sm
-    from statsmodels.formula.api import ols
-
-    # reading the csv file
-    dataframe = pd.read_csv(
-        "../../data_collection/data/ensemble_model/total_voter_preferences.csv"
-    )
-
-    # fit simple linear regression model
-    linear_model = ols('solution_bond ~ proportional_bond + nominator_count',
-                       data=dataframe).fit()
-
-    # display model summary
-    print(linear_model.summary())
-
-    # modify figure size
-    fig = plt.figure(figsize=(14, 8))
-
-    # creating regression plots
-    fig = sm.graphics.plot_regress_exog(linear_model,
-                                        'proportional_bond',
-                                        fig=fig)
-
-    plt.show()
-    """

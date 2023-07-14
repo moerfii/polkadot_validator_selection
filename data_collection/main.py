@@ -74,8 +74,11 @@ def calculate_phragmen(era):
 def process_model_1_data(args):
     preprocessor = Preprocessor()
     progress_counter = 0
-    eras = range(args.era - 6, args.era + 1)
+    eras = range(args.era - 9, args.era + 1)
     for era in eras:
+        if preprocessor.check_era_processed(args.model_1_path, era):
+            print(f"Era {era} already processed")
+            continue
         print(f"Processing era {era}")
         progress_counter = progress_of_loop(
             progress_counter, eras, "Preprocessing Model 1 Data"
@@ -90,6 +93,9 @@ def process_model_2_data(args):
     progress_counter = 0
     eras = range(args.era - 6, args.era + 1)
     for era in eras:
+        if preprocessor.check_era_processed(args.model_2_path, era):
+            print(f"Era {era} already processed")
+            continue
         print(f"Processing era {era}")
         progress_counter = progress_of_loop(
             progress_counter, eras, "Preprocessing Model 2 Data"
@@ -112,6 +118,9 @@ def process_model_3_data(args):
     progress_counter = 0
     eras = range(args.era - 3, args.era + 1)
     for era in eras:
+        if preprocessor.check_era_processed(args.model_3_path, era):
+            print(f"Era {era} already processed")
+            continue
         print(f"Processing era {era}")
         progress_counter = progress_of_loop(
             progress_counter, eras, "Preprocessing Model 3 Data"

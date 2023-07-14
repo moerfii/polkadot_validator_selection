@@ -26,6 +26,20 @@ class Preprocessor:
             "./data_collection/data/calculated_solutions_data/",
         ]
 
+    def check_era_processed(self, path, era):
+        """
+        Check if era is already processed
+        :param args:
+        :param era:
+        :return:
+        """
+        try:
+            with open(f"{path}_{era}.csv") as f:
+                return True
+        except FileNotFoundError:
+            return False
+
+
     def load_data(self, era):
         self.era = era
         try:
@@ -90,7 +104,7 @@ class Preprocessor:
         print(f"Calculating optimal solution for era {era}...")
         result = subprocess.run(
             [
-                "./hackingtime/target/debug/sequential_phragmen_custom",
+                "./sequential_phragmen_local/target/debug/sequential_phragmen_custom",
                 path_to_snapshot_file,
                 iterations,
                 str(era),
@@ -377,7 +391,7 @@ class Preprocessor:
                 number_of_validators = len(assignment)
                 proportional_bond = bond / number_of_validators
                 full_bond = bond
-                solution_bond = validator[1] / 1e9  # * bond
+                solution_bond = validator[1] / 1e9
                 data.append(
                     [
                         nominator,
@@ -650,6 +664,7 @@ class Preprocessor:
                         "total_bond": "sum",
                         "validator_frequency_current_era": "sum",
                         "probability_of_selection": "mean",
+                        "validator_centrality": "mean",
                         "era": "mean",
                     }
                 )
@@ -675,8 +690,12 @@ class Preprocessor:
                         "total_bond": "sum",
                         "validator_frequency_current_era": "sum",
                         "solution_bond": "sum",
-                        "probability_of_selection": "mean",
-                        "era": "mean",
+                        "probability_of_selection": "first",
+                        "era": "first",
+                        "prev_min_stake": "first",
+                        "prev_sum_stake": "first",
+                        "prev_variance_stake": "first",
+                        "validator_centrality": "first"
                     }
                 )
             )

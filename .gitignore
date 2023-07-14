@@ -5,10 +5,11 @@ data_collection/storedsolutions/
 data_collection/config.json
 data_collection/964_full_voterlist.json
 data_collection/964_fullfull_voterlist.json
+notebooks/images/
 .idea/
 notebooks/money.csv
-hackingtime/59_assignments.json
-hackingtime/59_winners.json
+sequential_phragmen_local/59_assignments.json
+sequential_phragmen_local/59_winners.json
 data_collection/data
 data_collection/money.csv
 data_collection/snapshot_encoded.parquet

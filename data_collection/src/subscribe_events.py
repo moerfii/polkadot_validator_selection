@@ -44,20 +44,3 @@ if __name__ == "__main__":
         subscription_handler=subscription_handler,
     )
 
-"""             
-prev_block = 0
-result = snapshot.substrate.subscribe_block_headers(subscription_handler,
-                                                    include_author=True,
-                                                    finalized_only=False)
-if result['header']['number'] == prev_block:
-    print("sleep")
-    time.sleep(1)
-prev_block = result['header']['number']
-snapshot.set_block_number(result['header']['number'])
-hash = snapshot.get_blockhash_from_blocknumber(result['header']['number'])
-events = snapshot.substrate.get_events(block_hash=hash)
-for event in events:
-    if event.value_serialized['module_id'] == "Electionprovidermultiphase" \
-            and events.value_serialized['event_id'] == "SignedPhaseStarted":
-        print("do something")
-"""

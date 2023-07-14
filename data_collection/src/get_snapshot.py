@@ -9,6 +9,12 @@ import json
 
 Base = declarative_base()
 
+with open("../../config.json", "r") as f:
+    credentials = json.load(f)
+    username = credentials["username"]
+    password = credentials["password"]
+    database = credentials["database"]
+
 
 class validator_pool(Base):
     __tablename__ = "validator_pool"
@@ -54,8 +60,9 @@ def query(era_block_dict, block_numbers, era):
     if block_number is None:
         raise Exception("Block number not found")
 
+
     SNAPSHOT_DB_URL = (
-        "postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/snapshot"
+        f"postgresql://{username}:{password}@{database}/snapshot"
     )
     engine = create_engine(
         SNAPSHOT_DB_URL,
@@ -71,7 +78,7 @@ def query(era_block_dict, block_numbers, era):
 
 def get_era_block_dict():
     SNAPSHOT_DB_URL = (
-        "postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/polkadot_uuid"
+        f"postgresql://{username}:{password}@{database}/polkadot_uuid"
     )
     engine = create_engine(
         SNAPSHOT_DB_URL,
@@ -108,7 +115,7 @@ def get_snapshot(era):
 if __name__ == "__main__":
 
     SNAPSHOT_DB_URL = (
-        "postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/polkadot_uuid"
+        f"postgresql://{username}:{password}@{database}/polkadot_uuid"
     )
     engine = create_engine(
         SNAPSHOT_DB_URL,
@@ -144,7 +151,7 @@ if __name__ == "__main__":
             raise Exception("Block number not found")
 
         SNAPSHOT_DB_URL = (
-            "postgresql://benmurph:youowemeabeer@consensus-2.ifi.uzh.ch:5432/snapshot"
+            f"postgresql://{username}:{password}@{database}/snapshot"
         )
         engine = create_engine(
             SNAPSHOT_DB_URL,

@@ -1,5 +1,6 @@
 import argparse
 import json
+import pickle
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -7,6 +8,7 @@ from src.adjustment import AdjustmentTool
 from src.score import ScoringTool, ScoringUtility
 from src.model import Model
 from sklearn.metrics import mean_squared_error
+import lightgbm as lgb
 
 
 def predict_model_1(args):
@@ -26,7 +28,13 @@ def predict_model_1(args):
         model.model_selection(args.model_1)
         model.split_data(era)
         model.scale_data()
-        model.model.fit(model.X_train, model.y_train)
+        if args.model_1 == "lgbm_classifier":
+            model.model.fit(model.X_train, model.y_train, eval_set=[(model.X_test, model.y_test)],
+                            callbacks=[lgb.early_stopping(stopping_rounds=100, verbose=False)]
+                            )
+        else:
+            model.model.fit(model.X_train, model.y_train)
+
         print(f"Model 1 {era} score: {model.model.score(model.X_test, model.y_test)}")
         predictions = model.model.predict_proba(model.X_test)
         predicted_dataframe = pd.concat(
@@ -58,12 +66,21 @@ def predict_model_2(args):
             features=args.features_2,
             era=era,
         )
-        model.model_selection(args.model_2)
         model.split_data(era)
-        model.scale_data()
-        model.feature_selection()
-        model.model.fit(model.X_train, model.y_train)
+        if args.model_2_load is not None:
+            model.model = pickle.load(open(args.model_2_load, "rb"))
+            model.column_transformer = pickle.load(open(args.scaler_2_load, "rb"))
+            model.scale_data()
 
+        else:
+            model.model_selection(args.model_2)
+            model.scale_data()
+            if args.model_2 == "lgbm_model_2":
+                model.model.fit(model.X_train, model.y_train, eval_set=[(model.X_test, model.y_test)],
+                                callbacks=[lgb.early_stopping(stopping_rounds=100, verbose=False)]
+                                )
+            else:
+                model.model.fit(model.X_train, model.y_train)
         # print(f"Model 2 Xtest score: {model.model.score(X_test, model.y_test)}")
         print(f"Model 2 {era} score: {model.model.score(model.X_test, model.y_test)}")
 
@@ -80,7 +97,6 @@ def predict_model_2(args):
             args.intermediate_results_path + f"{era}_model_2_predictions.csv",
             index=False,
         )
-    ############################ remove this if doeestn wwork
 
     model = prepare(
         path=args.model_2_path + "_grouped",
@@ -91,7 +107,6 @@ def predict_model_2(args):
     model.model_selection(args.model_2)
     model.split_data(args.era)
     model.scale_data()
-    # model.feature_selection()
     model.model.fit(model.X_train, model.y_train)
     X = pd.read_csv(
         f"data_collection/data/processed_data/model_2_data_grouped_Xtest_{args.era}.csv"
@@ -110,7 +125,6 @@ def predict_model_2(args):
         args.intermediate_results_path + f"{args.era}_model_2_X_test_predictions.csv",
         index=False,
     )
-    #############################
 
 
 def predict_model_3_Xtest(args):
@@ -128,13 +142,18 @@ def predict_model_3_Xtest(args):
     )
     model.model_selection(args.model_3)
 
-    model.divide_target_by_total_bond()
+    #model.divide_target_by_total_bond()
     model.model_selection(args.model_3)
+    #model.feature_selection()
     model.split_data(args.era)
     model.scale_data()
-    model.model.fit(model.X_train, model.y_train)
+    if args.model_3 == "lgbm_model_3":
+        model.model.fit(model.X_train, model.y_train, eval_set=[(model.X_test, model.y_test)],
+                        callbacks=[lgb.early_stopping(stopping_rounds=100, verbose=False)]
+                        )
+    else:
+        model.model.fit(model.X_train, model.y_train)
 
-    ############################ remove this if doeestn wwork
     X = pd.read_csv(
         f"data_collection/data/processed_data/model_3_data_Xtest_{args.era}.csv"
     )
@@ -145,14 +164,9 @@ def predict_model_3_Xtest(args):
     X_test = X_test.drop("era", axis=1)
     X_test = model.column_transformer.transform(X_test)
 
-    #############################
-
     predicted_dataframe = Xtest
     predicted_dataframe["prediction"] = model.model.predict(X_test)
 
-    predicted_dataframe["prediction"] = model.multiply_predictions_by_total_bond(
-        predicted_dataframe
-    )
     predicted_dataframe["prediction"] = predicted_dataframe["prediction"].astype(int)
     print("predictions made")
 
@@ -182,84 +196,7 @@ def predict_model_3_Xtest(args):
     print(f"score of stored:     {score_of_calculated}")
 
     adjusted_predicted_dataframe.to_csv(
-        args.intermediate_results_path + f"{args.era}_model_3_predictions_adj4.csv",
-        index=False,
-    )
-
-
-def predict_model_3(args, era):
-    """
-    predict model 3: This model predicts the stake of each validator.
-    :param args:
-    :return:
-    """
-    model = prepare(
-        path=args.model_3_path,
-        target_column=args.target_3,
-        features=args.features_3,
-        era=era,
-    )
-    model.model_selection(args.model_3)
-
-    model.divide_target_by_total_bond()
-    # model.y = np.log(model.y)
-    model.model_selection(args.model_3)
-    model.split_data(era)
-    model.scale_data()
-    model.model.fit(model.X_train, model.y_train)
-
-    if args.save:
-        model.save_trained_model()
-
-    predicted_dataframe = pd.concat(
-        [model.X[model.X["era"] == era], model.y[model.X["era"] == era]],
-        axis=1,
-    )
-    predicted_dataframe["prediction"] = model.model.predict(model.X_test)
-    error = mean_squared_error(
-        model.model.predict(model.X_test), model.y_test, squared=False
-    )
-    normalized_error = error / (
-        predicted_dataframe.loc[:, "prediction"].max()
-        - predicted_dataframe.loc[:, "prediction"].min()
-    )
-    print(f"normalized error: {normalized_error}")
-    score_model = model.model.score(model.X_test, model.y_test)
-    print(f"Model 3 score: {score_model}")
-    predicted_dataframe["prediction"] = model.multiply_predictions_by_total_bond(
-        predicted_dataframe
-    )
-    predicted_dataframe["prediction"] = predicted_dataframe["prediction"].astype(int)
-    print("predictions made")
-
-    # adjust predictions to 100%
-    adjusted_predicted_dataframe = adjust(predicted_dataframe)
-    print("predictions adjusted")
-
-    # score predictions
-    score_of_prediction = score(adjusted_predicted_dataframe)
-
-    result, score_of_prediction, score_of_calculated = compare(
-        score_of_prediction, era, args.compare
-    )
-
-    log_score(
-        score_of_prediction=score_of_prediction,
-        score_of_calculated=score_of_calculated,
-        era=era,
-        model=args.model_3,
-        result=result,
-    )
-
-    if args.plot:
-        plot_comparison(score_of_prediction, score_of_calculated)
-
-    print(f"result: {result}")
-    print(f"score of prediction: {score_of_prediction}")
-    print(f"score of stored: {score_of_calculated}")
-
-    adjusted_predicted_dataframe.to_csv(
-        args.intermediate_results_path + f"{era}_model_3_predictions.csv",
+        args.intermediate_results_path + f"{args.era}_model_3_predictions_sequentialadj_final.csv",
         index=False,
     )
 
@@ -276,9 +213,7 @@ def prepare(path=None, target_column="solution_bond", features=None, era=None):
         tmp_dataframe = pd.read_csv(path + f"_{era}.csv")
         dataframes.append(tmp_dataframe)
     dataframe = pd.concat(dataframes, ignore_index=True)
-    # dataframe['proportional_bond'] = dataframe['proportional_bond'] / dataframe['expected_sum_stake']
     model = Model(dataframe, target_column, features)
-
     return model
 
 
@@ -407,7 +342,7 @@ def log_score(
         "result": result,
     }
     # write to new file
-    with open(f"./models/results/{model}_{era}_log_adj4.json", "w") as jsonfile:
+    with open(f"./models/results/{model}_{era}_log_sequentialadj_final.json", "w") as jsonfile:
         json.dump(log, jsonfile, indent=4)
 
 
@@ -431,16 +366,6 @@ def main(args):
         # model.feature_selection()
         model.model.fit(model.X_train, model.y_train)
 
-        """
-        # get importance
-        importance = model.model.feature_importances_
-        # summarize feature importance
-        for i, v in enumerate(importance):
-            print('Feature: %0d, Score: %.5f' % (i, v))
-        # plot feature importance
-        plt.bar([x for x in range(len(importance))], importance)
-        plt.show()
-        print(f"model {args.model} trained")"""
 
     if args.save:
         model.save_trained_model()
@@ -467,15 +392,9 @@ def main(args):
     predicted_dataframe["prediction"] = predicted_dataframe["prediction"].astype(int)
     print("predictions made")
 
-    # pearson correlation
-
-    # predicted_dataframe.to_csv(f"../data_collection/data/model_2/predictions_individual_{args.era}.csv")
-
     # adjust predictions to 100%
     adjusted_predicted_dataframe = adjust(predicted_dataframe)
     print("predictions adjusted")
-
-    # adjusted_predicted_dataframe.to_csv(f"../data_collection/data/model_2/adjusted_predictions_individual_{args.era}.csv")
 
     # score predictions
     score_of_prediction = score(adjusted_predicted_dataframe)
